@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Customer, Transaction, Safe, PaymentMethod } from '../types';
-import { ArrowLeft, PlusCircle, MinusCircle, Wallet, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, PlusCircle, MinusCircle, Wallet, Edit2, Trash2, Calendar, FileText } from 'lucide-react';
 
 interface CustomerDetailProps {
   customer: Customer;
@@ -13,9 +13,10 @@ interface CustomerDetailProps {
 }
 
 export const CustomerDetail: React.FC<CustomerDetailProps> = ({ 
-  customer, transactions, safes, onBack, onPayment, onDeleteTransaction
+  customer, transactions, safes, onBack, onPayment, onDeleteTransaction, onEditTransaction
 }) => {
   const [modalMode, setModalMode] = useState<'in' | 'out' | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   
   // Payment Form
   const [amount, setAmount] = useState('');
@@ -23,18 +24,37 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const [selectedSafe, setSelectedSafe] = useState(safes[0]?.id || 0);
   const [selectedCurrency, setSelectedCurrency] = useState<'TL' | 'USD' | 'EUR'>('TL');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('nakit');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   const customerTransactions = transactions
     .filter(t => t.accId === customer.id)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  // Handle New Payment Submit
   const handleSubmit = () => {
     if (!amount || !selectedSafe) return;
     onPayment(parseFloat(amount), modalMode!, selectedSafe, selectedCurrency, paymentMethod, desc);
+    resetForm();
+  };
+
+  const resetForm = () => {
     setModalMode(null);
     setAmount('');
     setDesc('');
     setPaymentMethod('nakit');
+    setSelectedDate(new Date().toISOString().split('T')[0]);
+  };
+
+  // Handle Edit Click
+  const handleEditClick = (t: Transaction) => {
+      setEditingTransaction(t);
+  };
+
+  // Save Edited Transaction
+  const handleSaveEdit = () => {
+      if(!editingTransaction) return;
+      onEditTransaction(editingTransaction);
+      setEditingTransaction(null);
   };
 
   const formatDate = (isoString: string) => {
@@ -121,7 +141,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 <th className="px-6 py-3 font-medium text-right text-red-600">Borç</th>
                 <th className="px-6 py-3 font-medium text-right text-green-600">Alacak</th>
                 <th className="px-6 py-3 font-medium text-center w-24">Birim</th>
-                <th className="px-6 py-3 font-medium text-center w-24">İşlem</th>
+                <th className="px-6 py-3 font-medium text-center w-32">İşlem</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -153,13 +173,22 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                         {t.currency}
                     </td>
                     <td className="px-6 py-3 text-center">
-                        <button 
-                            onClick={() => { if(window.confirm('Bu işlemi silmek bakiyeleri etkileyecektir. Emin misiniz?')) onDeleteTransaction(t.id); }}
-                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                            title="Sil"
-                        >
-                            <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                            <button 
+                                onClick={() => handleEditClick(t)}
+                                className="text-gray-400 hover:text-blue-500 transition-colors p-1"
+                                title="Düzenle"
+                            >
+                                <Edit2 size={16} />
+                            </button>
+                            <button 
+                                onClick={() => { if(window.confirm('Bu işlemi silmek bakiyeleri etkileyecektir. Emin misiniz?')) onDeleteTransaction(t.id); }}
+                                className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                title="Sil"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
                     </td>
                   </tr>
                 );
@@ -176,7 +205,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Add Payment Modal */}
       {modalMode && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-[fadeIn_0.2s_ease-out]">
@@ -186,6 +215,19 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             </h3>
             
             <div className="space-y-4">
+               <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Tarih</label>
+                   <div className="relative">
+                        <input
+                        type="date"
+                        className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none bg-slate-50 text-sm pl-8"
+                        value={selectedDate}
+                        onChange={e => setSelectedDate(e.target.value)}
+                        />
+                        <Calendar size={16} className="absolute left-2.5 top-2.5 text-slate-400"/>
+                   </div>
+               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Kasa</label>
@@ -252,7 +294,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
               <div className="flex gap-3 mt-8">
                 <button 
-                  onClick={() => setModalMode(null)}
+                  onClick={resetForm}
                   className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-lg font-medium hover:bg-slate-200"
                 >
                   İptal
@@ -267,6 +309,116 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {editingTransaction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-[fadeIn_0.2s_ease-out]">
+                   <h3 className="text-xl font-bold mb-6 flex items-center text-slate-800 border-b pb-4">
+                      <Edit2 className="mr-2 text-orange-500" /> 
+                      {editingTransaction.items ? 'Fatura Düzenle' : 'Ödeme Düzenle'}
+                   </h3>
+
+                   <div className="space-y-4">
+                        {editingTransaction.items && (
+                            <div className="bg-orange-50 text-orange-700 p-3 rounded-lg text-xs mb-4">
+                                <FileText size={16} className="inline mr-1 mb-1"/>
+                                Fatura içerikleri ve tutarı buradan değiştirilemez. Sadece tarih ve açıklama güncellenebilir.
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Tarih</label>
+                             <input
+                                type="date"
+                                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none bg-slate-50 text-sm"
+                                value={editingTransaction.date}
+                                onChange={e => setEditingTransaction({...editingTransaction, date: e.target.value})}
+                             />
+                        </div>
+
+                        {!editingTransaction.items && (
+                            <>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Kasa</label>
+                                        <select 
+                                        className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none bg-slate-50 text-sm"
+                                        value={editingTransaction.safeId || 0}
+                                        onChange={e => setEditingTransaction({...editingTransaction, safeId: Number(e.target.value)})}
+                                        >
+                                            {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Yöntem</label>
+                                        <select 
+                                        className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none bg-slate-50 text-sm"
+                                        value={editingTransaction.method || 'nakit'}
+                                        onChange={e => setEditingTransaction({...editingTransaction, method: e.target.value as PaymentMethod})}
+                                        >
+                                            <option value="nakit">Nakit</option>
+                                            <option value="havale">Havale / EFT</option>
+                                            <option value="cek">Çek / Senet</option>
+                                            <option value="kredi_karti">Kredi Kartı</option>
+                                            <option value="virman">Virman</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Tutar</label>
+                                        <input 
+                                        type="number" 
+                                        className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none text-xl font-bold font-mono"
+                                        value={editingTransaction.total}
+                                        onChange={e => setEditingTransaction({...editingTransaction, total: parseFloat(e.target.value)})}
+                                        />
+                                    </div>
+                                     <div className="w-24">
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Birim</label>
+                                        <select 
+                                            className="w-full border rounded-lg p-2 h-[46px] focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold"
+                                            value={editingTransaction.currency}
+                                            onChange={e => setEditingTransaction({...editingTransaction, currency: e.target.value as any})}
+                                        >
+                                            <option value="TL">TL</option>
+                                            <option value="USD">USD</option>
+                                            <option value="EUR">EUR</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Açıklama</label>
+                            <input 
+                            type="text" 
+                            className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none"
+                            value={editingTransaction.desc || ''}
+                            onChange={e => setEditingTransaction({...editingTransaction, desc: e.target.value})}
+                            />
+                        </div>
+
+                        <div className="flex gap-3 mt-8">
+                            <button 
+                            onClick={() => setEditingTransaction(null)}
+                            className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-lg font-medium hover:bg-slate-200"
+                            >
+                            İptal
+                            </button>
+                            <button 
+                            onClick={handleSaveEdit}
+                            className="flex-1 bg-primary text-white py-3 rounded-lg font-medium shadow-lg hover:bg-sky-600"
+                            >
+                            Güncelle
+                            </button>
+                        </div>
+                   </div>
+              </div>
+          </div>
       )}
     </div>
   );

@@ -10,12 +10,16 @@ interface ProductsProps {
 }
 
 export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEditProduct, onDeleteProduct }) => {
-  const [filterType, setFilterType] = useState<'satilan' | 'alinan'>('satilan');
+  // Tabs: 'satilan' shows (satilan + both), 'alinan' shows (alinan + both)
+  const [activeTab, setActiveTab] = useState<'satilan' | 'alinan'>('satilan');
   const [isEditing, setIsEditing] = useState<number | null>(null);
   
   // New Product State
   const initialNewProd = { name: '', type: 'satilan', unit: '', cat: '', price: '' };
-  const [newProd, setNewProd] = useState(initialNewProd);
+  // We use a temporary state that holds strings for inputs
+  const [newProd, setNewProd] = useState<{name: string, type: 'satilan'|'alinan'|'both', unit: string, cat: string, price: string}>(
+      { ...initialNewProd, type: 'satilan' }
+  );
 
   // Editing Product State
   const [editForm, setEditForm] = useState<Product | null>(null);
@@ -25,10 +29,11 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
     onAddProduct({
       ...newProd,
       unit: newProd.unit || 'Adet',
-      type: filterType,
+      type: newProd.type,
       price: parseFloat(newProd.price) || 0
-    } as any);
-    setNewProd({ ...initialNewProd, type: filterType });
+    });
+    // Reset but keep the current type selection for convenience
+    setNewProd({ ...initialNewProd, type: newProd.type });
   };
 
   const startEdit = (p: Product) => {
@@ -44,7 +49,14 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
     }
   };
 
-  const filteredProducts = products.filter(p => p.type === filterType);
+  // Filter Logic:
+  // If activeTab is 'satilan', show 'satilan' AND 'both'
+  // If activeTab is 'alinan', show 'alinan' AND 'both'
+  const filteredProducts = products.filter(p => {
+      if (activeTab === 'satilan') return p.type === 'satilan' || p.type === 'both';
+      if (activeTab === 'alinan') return p.type === 'alinan' || p.type === 'both';
+      return false;
+  });
 
   return (
     <div className="space-y-6">
@@ -60,6 +72,15 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
             value={newProd.name}
             onChange={e => setNewProd({...newProd, name: e.target.value})}
           />
+          <select
+            className="md:col-span-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary outline-none bg-white"
+            value={newProd.type}
+            onChange={e => setNewProd({...newProd, type: e.target.value as any})}
+          >
+              <option value="satilan">Satılan</option>
+              <option value="alinan">Alınan</option>
+              <option value="both">Alınan & Satılan</option>
+          </select>
            <input
             className="md:col-span-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary outline-none"
             placeholder="Kategori (Örn: Koltuk)"
@@ -68,7 +89,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
           />
           <input
              className="md:col-span-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary outline-none"
-             placeholder="Birim (Adet, Mt...)"
+             placeholder="Birim (Adet...)"
              list="units"
              value={newProd.unit}
              onChange={e => setNewProd({...newProd, unit: e.target.value})}
@@ -80,19 +101,21 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
              <option value="Kg" />
              <option value="Top" />
           </datalist>
-          <input
-            className="md:col-span-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary outline-none"
-            placeholder="Birim Fiyat"
-            type="number"
-            value={newProd.price}
-            onChange={e => setNewProd({...newProd, price: e.target.value})}
-          />
-          <button 
-            onClick={handleAdd}
-            className="md:col-span-1 bg-primary hover:bg-sky-600 text-white rounded-lg font-medium transition-colors"
-          >
-            Ekle
-          </button>
+          <div className="md:col-span-1 flex gap-2">
+            <input
+                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary outline-none"
+                placeholder="Fiyat"
+                type="number"
+                value={newProd.price}
+                onChange={e => setNewProd({...newProd, price: e.target.value})}
+            />
+            <button 
+                onClick={handleAdd}
+                className="bg-primary hover:bg-sky-600 text-white rounded-lg px-3 font-medium transition-colors"
+            >
+                <Plus size={20} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -100,16 +123,16 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="flex border-b border-slate-100">
           <button 
-            className={`flex-1 py-4 font-medium text-sm transition-colors border-b-2 ${filterType === 'satilan' ? 'bg-sky-50 text-sky-600 border-sky-500' : 'text-slate-500 hover:bg-slate-50 border-transparent'}`}
-            onClick={() => setFilterType('satilan')}
+            className={`flex-1 py-4 font-medium text-sm transition-colors border-b-2 ${activeTab === 'satilan' ? 'bg-sky-50 text-sky-600 border-sky-500' : 'text-slate-500 hover:bg-slate-50 border-transparent'}`}
+            onClick={() => setActiveTab('satilan')}
           >
-            Satılan Ürünler
+            Satılabilir Ürünler
           </button>
           <button 
-            className={`flex-1 py-4 font-medium text-sm transition-colors border-b-2 ${filterType === 'alinan' ? 'bg-orange-50 text-orange-600 border-orange-500' : 'text-slate-500 hover:bg-slate-50 border-transparent'}`}
-            onClick={() => setFilterType('alinan')}
+            className={`flex-1 py-4 font-medium text-sm transition-colors border-b-2 ${activeTab === 'alinan' ? 'bg-orange-50 text-orange-600 border-orange-500' : 'text-slate-500 hover:bg-slate-50 border-transparent'}`}
+            onClick={() => setActiveTab('alinan')}
           >
-            Alınan Ürünler
+            Alınabilir Ürünler
           </button>
         </div>
 
@@ -118,6 +141,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
               <tr>
                 <th className="px-6 py-4">Ürün Adı</th>
+                <th className="px-6 py-4">Tip</th>
                 <th className="px-6 py-4">Kategori</th>
                 <th className="px-6 py-4">Birim</th>
                 <th className="px-6 py-4 text-right">Birim Fiyat</th>
@@ -137,6 +161,23 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                             <Box size={16} className="mr-3 text-slate-400" />
                             {p.name}
                         </div>
+                     )}
+                  </td>
+                   <td className="px-6 py-3">
+                     {editing ? (
+                        <select className="border rounded px-2 py-1 w-full text-xs" value={editForm.type} onChange={e => setEditForm({...editForm, type: e.target.value as any})}>
+                            <option value="satilan">Satılan</option>
+                            <option value="alinan">Alınan</option>
+                            <option value="both">Her İkisi</option>
+                        </select>
+                     ) : (
+                        <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wide
+                            ${p.type === 'both' ? 'bg-purple-100 text-purple-700' : 
+                              p.type === 'satilan' ? 'bg-sky-100 text-sky-700' : 'bg-orange-100 text-orange-700'
+                            }
+                        `}>
+                            {p.type === 'both' ? 'Alınan & Satılan' : p.type}
+                        </span>
                      )}
                   </td>
                   <td className="px-6 py-3 text-slate-600 text-sm">
@@ -181,7 +222,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
               )})}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-slate-400 flex flex-col items-center">
+                  <td colSpan={6} className="px-6 py-10 text-center text-slate-400 flex flex-col items-center">
                     <Tag size={32} className="mb-2 opacity-50" />
                     Bu kategoride ürün bulunamadı.
                   </td>

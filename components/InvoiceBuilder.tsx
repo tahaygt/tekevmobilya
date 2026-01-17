@@ -24,7 +24,14 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     setCurrency('TL');
   }, [type]);
 
-  const filteredProducts = products.filter(p => p.type === (type === 'sales' ? 'satilan' : 'alinan'));
+  // Filter products based on invoice type
+  // Sales Invoice -> Shows 'satilan' AND 'both'
+  // Purchase Invoice -> Shows 'alinan' AND 'both'
+  const filteredProducts = products.filter(p => {
+      const targetType = type === 'sales' ? 'satilan' : 'alinan';
+      return p.type === targetType || p.type === 'both';
+  });
+
   const filteredCustomers = customers.filter(c => 
     type === 'sales' ? (c.type === 'musteri' || c.type === 'both') : (c.type === 'tedarikci' || c.type === 'both')
   );

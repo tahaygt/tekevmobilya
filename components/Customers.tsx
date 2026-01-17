@@ -17,8 +17,8 @@ export const Customers: React.FC<CustomersProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   
   // Form State
-  const initialForm = { id: 0, name: '', type: 'musteri' as const, phone: '', address: '', balances: { TL: 0, USD: 0, EUR: 0 } };
-  const [formData, setFormData] = useState(initialForm);
+  const initialForm: Customer = { id: 0, name: '', type: 'musteri', phone: '', address: '', balances: { TL: 0, USD: 0, EUR: 0 } };
+  const [formData, setFormData] = useState<Customer>(initialForm);
 
   const handleSubmit = () => {
     if (!formData.name) return;

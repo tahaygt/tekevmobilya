@@ -39,8 +39,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
       >
         <div className="h-20 flex items-center justify-center px-6 bg-slate-950 shadow-lg border-b border-slate-800">
           <div className="text-center">
-             <h1 className="text-xl font-bold tracking-widest text-white">TEKEV</h1>
-             <span className="text-xs text-slate-400 tracking-[0.3em] uppercase">Mobilya</span>
+             <h1 className="text-xl font-bold tracking-widest text-white">TEKDEMİR</h1>
+             <span className="text-xs text-slate-400 tracking-[0.3em] uppercase">Koltuk</span>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden absolute right-4 text-slate-400">
             <X size={24} />

@@ -1,3 +1,4 @@
+
 export interface Customer {
   id: number;
   name: string;
@@ -14,7 +15,7 @@ export interface Customer {
 
 export interface Product {
   id: number;
-  type: 'satilan' | 'alinan';
+  type: 'satilan' | 'alinan' | 'both';
   name: string;
   unit: string;
   cat: string;

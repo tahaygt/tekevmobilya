@@ -125,8 +125,8 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
             <!-- Header -->
             <div class="border-b-2 border-slate-800 pb-6 mb-6 flex justify-between items-end">
                <div>
-                  <h1 class="text-3xl font-bold text-slate-900 tracking-widest">TEKEV</h1>
-                  <div class="text-sm text-slate-500 font-medium tracking-[0.4em] uppercase mt-1">MOBİLYA</div>
+                  <h1 class="text-3xl font-bold text-slate-900 tracking-widest">TEKDEMİR</h1>
+                  <div class="text-sm text-slate-500 font-medium tracking-[0.4em] uppercase mt-1">KOLTUK</div>
                </div>
                <div class="text-right">
                   <div class="text-xl font-bold text-slate-800">${cust.name}</div>
@@ -179,7 +179,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
             </div>
 
             <div class="mt-12 text-center text-xs text-slate-300">
-               Tekev Mobilya Yönetim Sistemi Tarafından Oluşturulmuştur.
+               Tekdemir Koltuk Yönetim Sistemi Tarafından Oluşturulmuştur.
             </div>
           </div>
           <script>
@@ -261,8 +261,8 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         
         {/* Header */}
         <div className="text-center mb-8 border-b-2 border-slate-800 pb-4">
-            <h1 className="text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase">TEKEV</h1>
-            <div className="text-slate-500 text-sm mt-1 uppercase tracking-[0.4em]">MOBİLYA</div>
+            <h1 className="text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase">TEKDEMİR</h1>
+            <div className="text-slate-500 text-sm mt-1 uppercase tracking-[0.4em]">KOLTUK</div>
             <div className="mt-4 text-xs font-medium bg-slate-100 inline-block px-3 py-1 rounded-full uppercase">
                 {activeTab === 'daily' ? `GÜNLÜK FİNANSAL RAPOR: ${formatDate(selectedDate)}` : `AYLIK FİNANSAL RAPOR: ${selectedMonth}`}
             </div>
@@ -399,7 +399,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         </div>
         
         <div className="mt-8 text-[10px] text-slate-300 text-center uppercase tracking-widest font-light">
-            Tekev Mobilya Yönetim Sistemleri v14
+            Tekdemir Koltuk Yönetim Sistemleri v14
         </div>
 
       </div>
