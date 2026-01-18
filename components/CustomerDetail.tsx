@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Customer, Transaction, Safe, PaymentMethod } from '../types';
-import { ArrowLeft, PlusCircle, MinusCircle, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, Download, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { ArrowLeft, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomerDetailProps {
@@ -218,14 +218,15 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
       }
 
       return (
-        <div className={`p-5 rounded-2xl border flex-1 text-center min-w-[140px] shadow-sm flex flex-col justify-between transition-all hover:shadow-md ${themeClass}`}>
-            <div className="text-[11px] font-black uppercase tracking-widest opacity-60 mb-2">
+        <div className={`p-4 rounded-2xl border flex-1 text-center min-w-[150px] shadow-sm flex flex-col justify-between transition-all hover:shadow-md ${themeClass}`}>
+            <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest opacity-60 mb-1">
                 {currency}
             </div>
-            <div className={`text-3xl font-black font-mono my-2 ${amountClass}`}>
+            {/* Optimized for large numbers: variable text size and tighter tracking */}
+            <div className={`text-xl sm:text-2xl xl:text-3xl font-black font-mono my-2 tracking-tighter break-words ${amountClass}`} title={bal.toLocaleString('tr-TR')}>
               {Math.abs(bal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
             </div>
-             <div className="text-[10px] font-bold uppercase tracking-wider bg-white/80 rounded py-1 px-3 mx-auto w-fit shadow-sm">
+             <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-white/80 rounded py-1 px-3 mx-auto w-fit shadow-sm whitespace-nowrap">
                 {statusLabel}
             </div>
         </div>
