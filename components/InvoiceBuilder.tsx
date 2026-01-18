@@ -17,12 +17,12 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   const [currency, setCurrency] = useState<'TL' | 'USD' | 'EUR'>('TL');
   const [desc, setDesc] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([
-    { name: '', qty: 1, unit: 'Adet', price: 0, total: 0 }
+    { code: '', name: '', description: '', qty: 1, unit: 'Adet', price: 0, total: 0 }
   ]);
 
   // Reset form when type changes
   useEffect(() => {
-    setItems([{ name: '', qty: 1, unit: 'Adet', price: 0, total: 0 }]);
+    setItems([{ code: '', name: '', description: '', qty: 1, unit: 'Adet', price: 0, total: 0 }]);
     setSelectedCust('');
     setCurrency('TL');
     setDesc('');
@@ -49,12 +49,13 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     const newItems = [...items];
     newItems[index].name = productName;
     if (product) {
+      // Don't auto-set code since products don't have codes anymore
       newItems[index].price = product.price;
       newItems[index].unit = product.unit;
     }
     updateTotal(newItems, index);
   };
-
+  
   const updateItem = (index: number, field: keyof TransactionItem, value: any) => {
     const newItems = [...items];
     (newItems[index] as any)[field] = value;
@@ -68,7 +69,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   };
 
   const addRow = () => {
-    setItems([...items, { name: '', qty: 1, unit: 'Adet', price: 0, total: 0 }]);
+    setItems([...items, { code: '', name: '', description: '', qty: 1, unit: 'Adet', price: 0, total: 0 }]);
   };
 
   const removeRow = (index: number) => {
@@ -142,6 +143,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 <thead>
                     <tr class="border-b-2 border-slate-800">
                         <th class="text-left py-3 font-bold text-slate-900 uppercase tracking-wide">Ürün / Hizmet</th>
+                        <th class="text-left py-3 font-bold text-slate-900 uppercase tracking-wide">Açıklama</th>
                         <th class="text-center py-3 font-bold text-slate-900 uppercase tracking-wide">Miktar</th>
                         <th class="text-right py-3 font-bold text-slate-900 uppercase tracking-wide">Birim Fiyat</th>
                         <th class="text-right py-3 font-bold text-slate-900 uppercase tracking-wide">Tutar</th>
@@ -150,7 +152,11 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 <tbody class="divide-y divide-slate-100">
                     ${t.items.map(item => `
                         <tr>
-                            <td class="py-4 text-slate-800 font-medium">${item.name}</td>
+                            <td class="py-4 text-slate-800 font-medium">
+                                ${item.code ? `<span class="text-xs font-mono text-slate-500 mr-2">[${item.code}]</span>` : ''}
+                                ${item.name}
+                            </td>
+                            <td class="py-4 text-slate-500 text-xs">${item.description || '-'}</td>
                             <td class="py-4 text-center text-slate-600">${item.qty} ${item.unit}</td>
                             <td class="py-4 text-right text-slate-600 font-mono">${item.price.toLocaleString('tr-TR', {minimumFractionDigits:2})}</td>
                             <td class="py-4 text-right text-slate-800 font-bold font-mono">${item.total.toLocaleString('tr-TR', {minimumFractionDigits:2})}</td>
@@ -170,7 +176,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
 
              ${t.desc ? `
             <div class="mt-8 pt-4 border-t border-slate-100">
-                 <div class="text-xs font-bold text-slate-500 uppercase">Açıklama / Not:</div>
+                 <div class="text-xs font-bold text-slate-500 uppercase">Fatura Notu:</div>
                  <div class="text-sm text-slate-700 mt-1">${t.desc}</div>
             </div>
             ` : ''}
@@ -262,17 +268,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
               <option value="EUR">EUR (Euro)</option>
             </select>
           </div>
-          
-          <div className="md:col-span-12">
-            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Fatura Açıklaması (Opsiyonel)</label>
-            <input 
-                type="text"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none bg-white text-sm placeholder:text-slate-400"
-                placeholder="Örn: Proje teslimatı 1. hakediş"
-                value={desc}
-                onChange={e => setDesc(e.target.value)}
-            />
-          </div>
         </div>
 
         {/* Dynamic Table */}
@@ -280,23 +275,40 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="px-4 py-4 min-w-[300px]">Ürün / Hizmet Adı</th>
-                <th className="px-4 py-4 w-32 text-center">Miktar</th>
-                <th className="px-4 py-4 w-32 text-center">Birim</th>
-                <th className="px-4 py-4 w-40 text-right">Birim Fiyat</th>
-                <th className="px-4 py-4 w-40 text-right">Toplam Tutar</th>
+                {/* Product Code Header: Only for Purchase */}
+                {type === 'purchase' && (
+                    <th className="px-4 py-4 w-24">Kod</th>
+                )}
+                <th className="px-4 py-4 w-48">Ürün / Hizmet Adı</th>
+                <th className="px-4 py-4 w-48">Açıklama</th>
+                <th className="px-4 py-4 w-24 text-center">Miktar</th>
+                <th className="px-4 py-4 w-24 text-center">Birim</th>
+                <th className="px-4 py-4 w-32 text-right">Birim Fiyat</th>
+                <th className="px-4 py-4 w-32 text-right">Toplam</th>
                 <th className="px-4 py-4 w-16 text-center">Sil</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {items.map((item, index) => (
                 <tr key={index} className="group hover:bg-slate-50/50 transition-colors">
+                  {/* Product Code Input: Only for Purchase */}
+                  {type === 'purchase' && (
+                    <td className="p-3">
+                        <input
+                            type="text"
+                            className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-2 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-slate-400 font-mono text-xs"
+                            placeholder="Kod"
+                            value={item.code || ''}
+                            onChange={e => updateItem(index, 'code', e.target.value)}
+                        />
+                    </td>
+                  )}
                   <td className="p-3">
                     <div className="relative">
                         <input
                         list={`products-${index}`}
                         className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-slate-400"
-                        placeholder="Ürün arayın..."
+                        placeholder="Ürün..."
                         value={item.name}
                         onChange={e => handleProductChange(index, e.target.value)}
                         />
@@ -305,6 +317,15 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                     <datalist id={`products-${index}`}>
                       {filteredProducts.map(p => <option key={p.id} value={p.name} />)}
                     </datalist>
+                  </td>
+                  <td className="p-3">
+                     <input
+                        type="text"
+                        className="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-slate-400 text-xs"
+                        placeholder="Satır açıklaması..."
+                        value={item.description || ''}
+                        onChange={e => updateItem(index, 'description', e.target.value)}
+                     />
                   </td>
                   <td className="p-3">
                     <input
@@ -331,7 +352,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                     />
                   </td>
                   <td className="p-3 text-right">
-                    <div className="px-3 py-2.5 bg-slate-50 rounded-lg font-bold text-slate-800 font-mono border border-slate-100">
+                    <div className="px-3 py-2.5 bg-slate-50 rounded-lg font-bold text-slate-800 font-mono border border-slate-100 text-xs">
                         {item.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                     </div>
                   </td>
@@ -357,29 +378,40 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
           <Plus size={18} className="mr-2" /> Yeni Satır Ekle
         </button>
 
-        {/* Footer Totals */}
-        <div className="flex flex-col md:flex-row justify-end items-center border-t border-slate-100 pt-8 mt-8">
-          <div className="text-right w-full md:w-auto bg-slate-50 p-6 rounded-2xl border border-slate-100 min-w-[300px]">
-             <div className="flex justify-between items-center mb-4">
-                <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Ara Toplam</span>
-                <span className="text-slate-700 font-mono font-bold">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {currency}</span>
-             </div>
-             
-             <div className="flex justify-between items-center pt-4 border-t border-slate-200 mb-6">
-                 <span className="text-slate-800 text-lg font-black uppercase tracking-wide">Genel Toplam</span>
-                 <span className="text-3xl font-black text-slate-900 font-mono tracking-tight">
-                    {grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-lg text-slate-400">{currency}</span>
-                 </span>
-             </div>
+        {/* Footer Totals & Description */}
+        <div className="flex flex-col md:flex-row justify-between items-end border-t border-slate-100 pt-8 mt-8 gap-8">
+            {/* Description Moved to Bottom */}
+            <div className="w-full md:flex-1">
+                 <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Fatura Genel Notu (Opsiyonel)</label>
+                 <textarea 
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none bg-white text-sm placeholder:text-slate-400 h-32 resize-none"
+                    placeholder="Fatura genel açıklaması..."
+                    value={desc}
+                    onChange={e => setDesc(e.target.value)}
+                 />
+            </div>
 
-             <button 
-                onClick={handleSave}
-                className={`w-full py-4 rounded-xl font-bold text-white shadow-xl transition-all flex items-center justify-center active:scale-95 text-lg
-                    ${type === 'sales' ? 'bg-slate-900 hover:bg-slate-800 shadow-slate-300/50' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-300/50'}`}
-             >
-                <Save className="mr-2" /> Faturayı Kaydet
-             </button>
-          </div>
+            <div className="text-right w-full md:w-auto bg-slate-50 p-6 rounded-2xl border border-slate-100 min-w-[300px]">
+                <div className="flex justify-between items-center mb-4">
+                    <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Ara Toplam</span>
+                    <span className="text-slate-700 font-mono font-bold">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {currency}</span>
+                </div>
+                
+                <div className="flex justify-between items-center pt-4 border-t border-slate-200 mb-6">
+                    <span className="text-slate-800 text-lg font-black uppercase tracking-wide">Genel Toplam</span>
+                    <span className="text-3xl font-black text-slate-900 font-mono tracking-tight">
+                        {grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-lg text-slate-400">{currency}</span>
+                    </span>
+                </div>
+
+                <button 
+                    onClick={handleSave}
+                    className={`w-full py-4 rounded-xl font-bold text-white shadow-xl transition-all flex items-center justify-center active:scale-95 text-lg
+                        ${type === 'sales' ? 'bg-slate-900 hover:bg-slate-800 shadow-slate-300/50' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-300/50'}`}
+                >
+                    <Save className="mr-2" /> Faturayı Kaydet
+                </button>
+            </div>
         </div>
       </div>
 
@@ -394,12 +426,12 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 <tr>
                     <th className="px-4 py-3">Tarih</th>
                     <th className="px-4 py-3">Cari</th>
-                    <th className="px-4 py-3">Açıklama</th>
+                    <th className="px-4 py-3">Not</th>
                     <th className="px-4 py-3 text-right">Tutar</th>
                     <th className="px-4 py-3 text-center">İşlem</th>
                 </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-5">
                 {recentInvoices.map(t => (
                     <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 font-mono text-xs text-slate-600">{t.date.split('-').reverse().join('.')}</td>

@@ -16,6 +16,7 @@ export interface Customer {
 export interface Product {
   id: number;
   type: 'satilan' | 'alinan' | 'both';
+  // code field removed from Product definition
   name: string;
   unit: string;
   cat: string;
@@ -34,7 +35,9 @@ export interface Safe {
 }
 
 export interface TransactionItem {
+  code?: string; // Kept here for manual entry in Purchase Invoices
   name: string;
+  description?: string; // Added line item description
   qty: number;
   unit: string;
   price: number;

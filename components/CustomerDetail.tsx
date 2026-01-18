@@ -262,6 +262,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 <thead>
                     <tr class="border-b-2 border-slate-800">
                         <th class="text-left py-3 font-bold text-slate-900 uppercase tracking-wide">Ürün / Hizmet</th>
+                        <th class="text-left py-3 font-bold text-slate-900 uppercase tracking-wide">Açıklama</th>
                         <th class="text-center py-3 font-bold text-slate-900 uppercase tracking-wide">Miktar</th>
                         <th class="text-right py-3 font-bold text-slate-900 uppercase tracking-wide">Birim Fiyat</th>
                         <th class="text-right py-3 font-bold text-slate-900 uppercase tracking-wide">Tutar</th>
@@ -270,7 +271,11 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 <tbody class="divide-y divide-slate-100">
                     ${t.items.map(item => `
                         <tr>
-                            <td class="py-4 text-slate-800 font-medium">${item.name}</td>
+                            <td class="py-4 text-slate-800 font-medium">
+                                ${item.code ? `<span class="text-xs font-mono text-slate-500 mr-2">[${item.code}]</span>` : ''}
+                                ${item.name}
+                            </td>
+                            <td class="py-4 text-slate-500 text-xs">${item.description || '-'}</td>
                             <td class="py-4 text-center text-slate-600">${item.qty} ${item.unit}</td>
                             <td class="py-4 text-right text-slate-600 font-mono">${item.price.toLocaleString('tr-TR', {minimumFractionDigits:2})}</td>
                             <td class="py-4 text-right text-slate-800 font-bold font-mono">${item.total.toLocaleString('tr-TR', {minimumFractionDigits:2})}</td>
@@ -290,7 +295,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
             ${t.desc ? `
             <div class="mt-8 pt-4 border-t border-slate-100">
-                 <div class="text-xs font-bold text-slate-500 uppercase">Açıklama / Not:</div>
+                 <div class="text-xs font-bold text-slate-500 uppercase">Fatura Notu:</div>
                  <div class="text-sm text-slate-700 mt-1">${t.desc}</div>
             </div>
             ` : ''}
@@ -477,7 +482,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                          {t.desc ? t.desc : trType}
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        {isInvoice ? t.items?.map(i => `${i.name} (${i.qty} ${i.unit})`).join(', ') : (t.desc ? trType : '')}
+                        {isInvoice ? t.items?.map(i => `${i.code ? `[${i.code}] ` : ''}${i.name} (${i.qty} ${i.unit})`).join(', ') : (t.desc ? trType : '')}
                       </div>
                     </td>
                      <td className="px-6 py-4">

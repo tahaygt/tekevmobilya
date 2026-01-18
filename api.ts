@@ -1,6 +1,6 @@
 
 // Google Apps Script Deployment URL
-const API_URL = "https://script.google.com/macros/s/AKfycbw-ZRbqAlRkacLP7bNqCVAvhZE1aumwVXBYGeHbDotrZE33SFh-KlmVUeH61jyeqWVc4A/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwVak5hQHzzpf0WZUxwN91rQB8hEwmWBwNKPnReU7JVyL-rRlwz-9HaKMUqn0dp-1SGBA/exec"; 
 
 export const api = {
   // Tüm verileri çek
@@ -14,8 +14,8 @@ export const api = {
       
       if (!res.ok) throw new Error('Network response was not ok');
       
-      const data = await res.json();
-      return data;
+      const text = await res.json();
+      return text;
     } catch (error) {
       console.error("API Fetch Error:", error);
       throw error;
@@ -24,12 +24,11 @@ export const api = {
 
   // Veri Ekleme (Satır ekler)
   create: async (collection: string, data: any) => {
-    // Google Apps Script POST istekleri için 'no-cors' modu ve text/plain header'ı kritiktir.
-    // Bu sayede tarayıcı preflight (OPTIONS) isteği atmaz ve CORS hatası almadan işlem gerçekleşir.
-    // Yanıt "opaque" olacağı için okunamaz, ancak işlem sunucuda gerçekleşir.
+    // keepalive: true -> Sayfa kapansa bile isteğin gitmesini sağlar.
     await fetch(API_URL, {
       method: 'POST',
       mode: 'no-cors',
+      keepalive: true, 
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
@@ -42,6 +41,7 @@ export const api = {
     await fetch(API_URL, {
       method: 'POST',
       mode: 'no-cors',
+      keepalive: true,
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
@@ -54,6 +54,7 @@ export const api = {
     await fetch(API_URL, {
       method: 'POST',
       mode: 'no-cors',
+      keepalive: true,
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },

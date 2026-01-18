@@ -161,11 +161,11 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
             />
           </div>
 
-          <div className="md:col-span-2 space-y-1">
+          <div className="md:col-span-1 space-y-1">
              <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Birim</label>
              <input
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary outline-none text-sm"
-                placeholder="Adet/Mt"
+                placeholder="Adet"
                 list="units"
                 value={newProd.unit}
                 onChange={e => setNewProd({...newProd, unit: e.target.value})}
@@ -201,13 +201,13 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
              </div>
           </div>
 
-          <div className="md:col-span-1">
+          <div className="md:col-span-2">
             <button 
                 onClick={handleAdd}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-2.5 font-medium transition-colors flex justify-center items-center shadow-lg active:scale-95"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3 font-medium transition-colors flex justify-center items-center shadow-lg active:scale-95"
                 title="Ekle"
             >
-                <Plus size={20} />
+                <Plus size={20} className="mr-2"/> Ekle
             </button>
           </div>
         </div>
@@ -236,7 +236,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                 <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                 <input 
                     type="text" 
-                    placeholder="Ürün ara..." 
+                    placeholder="Ad veya kategori ara..." 
                     className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary outline-none text-sm"
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
