@@ -53,7 +53,13 @@ const LoginScreen: React.FC = () => {
             await signInWithEmailAndPassword(auth, email, password);
         } catch (err: any) {
             console.error(err);
-            setError("Giriş yapılamadı: " + err.message);
+            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+                setError("E-posta adresi veya şifre hatalı.");
+            } else if (err.code === 'auth/too-many-requests') {
+                setError("Çok fazla başarısız deneme. Lütfen bekleyiniz.");
+            } else {
+                setError("Giriş yapılamadı: " + err.message);
+            }
         } finally {
             setLoading(false);
         }
@@ -69,10 +75,10 @@ const LoginScreen: React.FC = () => {
                 </div>
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Kullanıcı Adı</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">E-Posta</label>
                         <div className="relative">
                             <Mail className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                            <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 pl-10 outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm" placeholder="E-Posta" value={email} onChange={e => setEmail(e.target.value)} required />
+                            <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 pl-10 outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm" placeholder="ornek@tekdemir.com" value={email} onChange={e => setEmail(e.target.value)} required />
                         </div>
                     </div>
                     <div>
@@ -82,10 +88,23 @@ const LoginScreen: React.FC = () => {
                             <input type="password" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 pl-10 outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm" placeholder="******" value={password} onChange={e => setPassword(e.target.value)} required />
                         </div>
                     </div>
-                    {error && <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 p-3 rounded-lg border border-red-100"><AlertCircle size={16}/><span>{error}</span></div>}
-                    <button type="submit" disabled={loading} className={`w-full py-3.5 rounded-xl text-white font-bold shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex justify-center items-center bg-slate-900 hover:bg-slate-800 ${loading ? 'opacity-70' : ''}`}>
+                    
+                    {error && (
+                        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 p-3 rounded-lg border border-red-100 animate-[fadeIn_0.2s_ease-out]">
+                            <AlertCircle size={16} className="shrink-0"/>
+                            <span>{error}</span>
+                        </div>
+                    )}
+                    
+                    <button type="submit" disabled={loading} className={`w-full py-3.5 rounded-xl text-white font-bold shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex justify-center items-center bg-slate-900 hover:bg-slate-800 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}>
                         {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
                     </button>
+                    
+                    <div className="text-center pt-4">
+                        <p className="text-[10px] text-slate-400">
+                           Sadece yetkili personel giriş yapabilir.
+                        </p>
+                    </div>
                 </form>
              </div>
         </div>
