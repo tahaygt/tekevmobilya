@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Transaction, Customer, PaymentMethod } from '../types';
-import { Printer, Download, Calendar, Edit3, Check, FileText, FileSpreadsheet } from 'lucide-react';
+import { Printer, Download, Calendar, Edit3, Check, FileText, FileSpreadsheet, Filter } from 'lucide-react';
 
 interface DailyReportProps {
   transactions: Transaction[];
@@ -12,20 +13,40 @@ const getDailyInvoices = (transactions: Transaction[], date: string) => {
     return transactions.filter(t => t.date === date && (t.type === 'sales' || t.type === 'purchase'));
 };
 
+const getTrType = (type: string, hasItems: boolean) => {
+    if (hasItems) return type === 'sales' ? 'Satış Faturası' : 'Alış Faturası';
+    switch(type) {
+        case 'cash_in': return 'Tahsilat (Giriş)';
+        case 'cash_out': return 'Ödeme (Çıkış)';
+        default: return type;
+    }
+};
+
 export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customers }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'monthly'>('daily');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [filterType, setFilterType] = useState<string>('all');
   const [editMode, setEditMode] = useState(false);
   
   // -- DATA PROCESSING --
   const activeTransactions = useMemo(() => {
+      let filtered = transactions;
+
+      // Date Filter
       if (activeTab === 'daily') {
-          return transactions.filter(t => t.date === selectedDate);
+          filtered = filtered.filter(t => t.date === selectedDate);
       } else {
-          return transactions.filter(t => t.date.startsWith(selectedMonth));
+          filtered = filtered.filter(t => t.date.startsWith(selectedMonth));
       }
-  }, [transactions, activeTab, selectedDate, selectedMonth]);
+
+      // Type Filter
+      if (filterType !== 'all') {
+          filtered = filtered.filter(t => t.type === filterType);
+      }
+
+      return filtered;
+  }, [transactions, activeTab, selectedDate, selectedMonth, filterType]);
   
   // Group by Customer for main table
   const distinctCustIds = Array.from(new Set(activeTransactions.map(t => t.accId))).filter(Boolean) as number[];
@@ -88,8 +109,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         const debtStr = isDebt ? t.total.toString().replace('.', ',') : '';
         const creditStr = isCredit ? t.total.toString().replace('.', ',') : '';
         const totalStr = t.total.toString().replace('.', ',');
+        const trType = getTrType(t.type, !!t.items);
         
-        csvContent += `${formatDate(t.date)};${t.type};"${t.desc || ''}";${debtStr};${creditStr};${totalStr};${t.currency}\n`;
+        csvContent += `${formatDate(t.date)};${trType};"${t.desc || ''}";${debtStr};${creditStr};${totalStr};${t.currency}\n`;
       });
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -151,10 +173,11 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                  ${custTrans.map(t => {
                     const isDebt = t.type === 'sales' || t.type === 'cash_out';
                     const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                    const trType = getTrType(t.type, !!t.items);
                     return `
                       <tr>
                         <td class="py-2 px-2 text-slate-500">${formatDate(t.date)}</td>
-                        <td class="py-2 px-2 text-slate-800 font-medium">${t.desc || (t.items ? 'Fatura' : t.type)}</td>
+                        <td class="py-2 px-2 text-slate-800 font-medium">${t.desc || trType}</td>
                         <td class="py-2 px-2 text-right font-mono ${isDebt ? 'text-red-600' : ''}">
                            ${isDebt ? t.total.toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}
                         </td>
@@ -196,7 +219,8 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   const handleGlobalExport = () => {
     let csvContent = "\uFEFFTarih;Cari;Islem;Tutar;Para Birimi\n";
     activeTransactions.forEach(t => {
-        csvContent += `${t.date};${t.accName || '-'};${t.desc || t.type};${t.total.toString().replace('.',',')};${t.currency}\n`;
+        const trType = getTrType(t.type, !!t.items);
+        csvContent += `${t.date};${t.accName || '-'};${t.desc || trType};${t.total.toString().replace('.',',')};${t.currency}\n`;
     });
     const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
     const link = document.createElement("a");
@@ -210,23 +234,40 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
     <div className="space-y-6">
         
       {/* Controls */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
-         <div className="flex items-center bg-slate-100 rounded-lg p-1">
-            <button 
-                onClick={() => setActiveTab('daily')}
-                className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'daily' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
-            >
-                Günlük Rapor
-            </button>
-            <button 
-                onClick={() => setActiveTab('monthly')}
-                className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'monthly' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
-            >
-                Aylık Rapor
-            </button>
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col xl:flex-row justify-between items-center gap-4 no-print">
+         <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
+             <div className="flex items-center bg-slate-100 rounded-lg p-1 w-full sm:w-auto">
+                <button 
+                    onClick={() => setActiveTab('daily')}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'daily' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                >
+                    Günlük
+                </button>
+                <button 
+                    onClick={() => setActiveTab('monthly')}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'monthly' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                >
+                    Aylık
+                </button>
+             </div>
+
+             <div className="relative w-full sm:w-64">
+                <Filter size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                <select 
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg py-2 pl-9 pr-4 focus:ring-2 focus:ring-primary outline-none text-sm bg-white cursor-pointer hover:border-slate-300"
+                >
+                    <option value="all">Tüm İşlemler</option>
+                    <option value="sales">Satış Faturaları</option>
+                    <option value="purchase">Alış Faturaları</option>
+                    <option value="cash_in">Tahsilatlar (Giriş)</option>
+                    <option value="cash_out">Ödemeler (Çıkış)</option>
+                </select>
+             </div>
          </div>
 
-         <div className="flex items-center gap-2 md:gap-4">
+         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             {activeTab === 'daily' ? (
                 <input 
                     type="date" 
@@ -246,7 +287,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
             <button onClick={() => setEditMode(!editMode)} className={`p-2 rounded-lg border ${editMode ? 'bg-orange-50 border-orange-200 text-orange-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`} title="Düzenle">
                 {editMode ? <Check size={20}/> : <Edit3 size={20}/>}
             </button>
-            <div className="h-6 w-px bg-slate-300 mx-2"></div>
+            <div className="h-6 w-px bg-slate-300 mx-1"></div>
             <button onClick={handleGlobalExport} className="flex items-center text-slate-600 hover:text-green-600 p-2 hover:bg-green-50 rounded-lg" title="Tümünü Excel İndir">
                 <Download size={20} />
             </button>
@@ -263,8 +304,15 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         <div className="text-center mb-8 border-b-2 border-slate-800 pb-4">
             <h1 className="text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase">TEKDEMİR</h1>
             <div className="text-slate-500 text-sm mt-1 uppercase tracking-[0.4em]">KOLTUK</div>
-            <div className="mt-4 text-xs font-medium bg-slate-100 inline-block px-3 py-1 rounded-full uppercase">
-                {activeTab === 'daily' ? `GÜNLÜK FİNANSAL RAPOR: ${formatDate(selectedDate)}` : `AYLIK FİNANSAL RAPOR: ${selectedMonth}`}
+            <div className="mt-4 flex flex-col items-center gap-1">
+                <div className="text-xs font-medium bg-slate-100 inline-block px-3 py-1 rounded-full uppercase">
+                    {activeTab === 'daily' ? `GÜNLÜK FİNANSAL RAPOR: ${formatDate(selectedDate)}` : `AYLIK FİNANSAL RAPOR: ${selectedMonth}`}
+                </div>
+                {filterType !== 'all' && (
+                     <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                        Filtre: {filterType === 'sales' ? 'Satış Faturaları' : filterType === 'purchase' ? 'Alış Faturaları' : filterType === 'cash_in' ? 'Tahsilatlar' : 'Ödemeler'}
+                     </div>
+                )}
             </div>
         </div>
 
@@ -281,7 +329,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
             {distinctCustIds.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 italic">
                     <Calendar size={32} className="mx-auto mb-2 opacity-20" />
-                    Seçilen tarih aralığında işlem bulunamadı.
+                    Seçilen kriterlere uygun işlem bulunamadı.
                 </div>
             ) : (
                 distinctCustIds.map(custId => {
@@ -313,7 +361,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                             {custTrans.map((t, idx) => (
                                 <div key={t.id} className="grid grid-cols-12 py-1 px-2 border-b border-slate-100 last:border-b-0 text-[10px] items-center hover:bg-yellow-50 transition-colors">
                                     <div className="col-span-2 text-slate-400 pl-1">{formatDate(t.date)}</div>
-                                    <div className="col-span-4 truncate px-1 font-medium text-slate-700">{t.desc || (t.items ? 'Fatura' : t.type)}</div>
+                                    <div className="col-span-4 truncate px-1 font-medium text-slate-700">{t.desc || (t.items ? 'Fatura' : getTrType(t.type, false))}</div>
                                     <div className="col-span-2 text-right px-1 font-mono">{(t.type === 'cash_in' || t.type === 'cash_out') ? formatMoney(t.total, t.currency) : ''}</div>
                                     <div className="col-span-2 text-right px-1 font-mono">{(t.type === 'sales' || t.type === 'purchase') ? formatMoney(t.total, t.currency) : ''}</div>
                                     <div className="col-span-2 text-right px-1 font-mono font-bold text-slate-900 truncate" title={getCustBalancesStr(cust)}>

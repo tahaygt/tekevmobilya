@@ -20,6 +20,7 @@ export interface Product {
   unit: string;
   cat: string;
   price: number;
+  currency: 'TL' | 'USD' | 'EUR';
 }
 
 export interface Safe {
