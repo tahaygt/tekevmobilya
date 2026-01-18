@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Customer, Transaction, Safe, PaymentMethod } from '../types';
-import { ArrowLeft, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { ArrowLeft, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft, FileDown } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomerDetailProps {
@@ -114,6 +114,108 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
     return isoString.split('-').reverse().join('.');
   };
 
+  const printFullStatement = () => {
+      // Just print the current window but hide everything except the table via print styles? 
+      // Better to create a clean printable window for the statement.
+      const printWindow = window.open('', '', 'width=900,height=1000');
+      if (!printWindow) return;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Cari Ekstre - ${customer.name}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+          <style>
+             body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; padding: 40px; }
+             @page { size: A4; margin: 10mm; }
+          </style>
+        </head>
+        <body>
+          <div class="max-w-4xl mx-auto">
+             <div class="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-8">
+               <div>
+                  <h1 class="text-3xl font-black text-slate-900 tracking-widest">TEKDEMİR</h1>
+                  <div class="text-sm text-slate-500 font-bold tracking-[0.4em] uppercase mt-1">KOLTUK & MOBİLYA</div>
+               </div>
+               <div class="text-right">
+                  <div class="text-xl font-bold text-slate-800">${customer.name}</div>
+                  <div class="text-sm text-slate-500 mt-1">Cari Hesap Ekstresi</div>
+                  <div class="text-xs text-slate-400 mt-1">${formatDate(new Date().toISOString().split('T')[0])} itibariyle</div>
+               </div>
+            </div>
+
+            <table class="w-full text-sm text-left border-collapse">
+               <thead>
+                 <tr class="bg-slate-100 text-slate-600 border-b border-slate-300">
+                    <th class="py-3 px-2 font-bold w-24">Tarih</th>
+                    <th class="py-3 px-2 font-bold">Açıklama / İşlem</th>
+                    <th class="py-3 px-2 font-bold text-right w-32">Borç</th>
+                    <th class="py-3 px-2 font-bold text-right w-32">Alacak</th>
+                    <th class="py-3 px-2 font-bold text-center w-24">Birim</th>
+                 </tr>
+               </thead>
+               <tbody class="divide-y divide-slate-200">
+                 ${filteredTransactions.map(t => {
+                    const isDebt = t.type === 'sales' || t.type === 'cash_out';
+                    const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                    const isInvoice = !!t.items;
+                    const trType = getTrType(t.type, isInvoice);
+                    const desc = t.desc || trType;
+                    
+                    return `
+                      <tr>
+                        <td class="py-2 px-2 text-slate-500 text-xs">${formatDate(t.date)}</td>
+                        <td class="py-2 px-2 text-slate-800 font-medium">
+                            <div>${desc}</div>
+                            ${isInvoice ? `<div class="text-[10px] text-slate-400 italic">${t.items?.length} kalem ürün</div>` : ''}
+                        </td>
+                        <td class="py-2 px-2 text-right font-mono ${isDebt ? 'text-red-600' : ''}">
+                           ${isDebt ? t.total.toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}
+                        </td>
+                        <td class="py-2 px-2 text-right font-mono ${isCredit ? 'text-green-600' : ''}">
+                           ${isCredit ? t.total.toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}
+                        </td>
+                        <td class="py-2 px-2 text-center text-slate-400 text-xs">${t.currency}</td>
+                      </tr>
+                    `;
+                 }).join('')}
+               </tbody>
+            </table>
+
+            <div class="mt-8 flex justify-end">
+               <div class="bg-slate-50 rounded p-4 border border-slate-200 w-64">
+                  <div class="text-xs text-slate-500 uppercase font-bold mb-2 pb-2 border-b border-slate-200">Güncel Bakiyeler</div>
+                  ${['TL', 'USD', 'EUR'].map(curr => {
+                      const bal = customer.balances[curr as 'TL'|'USD'|'EUR'];
+                      if(bal === 0) return '';
+                      return `
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-bold text-slate-400">${curr}</span>
+                            <span class="font-mono font-bold ${bal > 0 ? 'text-red-600' : 'text-green-600'}">
+                                ${bal > 0 ? '(Borç)' : '(Alacak)'} ${Math.abs(bal).toLocaleString('tr-TR', {minimumFractionDigits:2})}
+                            </span>
+                        </div>
+                      `
+                  }).join('')}
+               </div>
+            </div>
+            
+             <div class="mt-12 text-center text-xs text-slate-300">
+               Tekdemir Koltuk Yönetim Sistemi - Otomatik Döküm
+            </div>
+          </div>
+          <script>
+             window.onload = () => { setTimeout(() => { window.print(); }, 500); }
+          </script>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+  };
+
   const printInvoice = (t: Transaction) => {
       if (!t.items) return;
 
@@ -185,6 +287,13 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     </div>
                 </div>
             </div>
+
+            ${t.desc ? `
+            <div class="mt-8 pt-4 border-t border-slate-100">
+                 <div class="text-xs font-bold text-slate-500 uppercase">Açıklama / Not:</div>
+                 <div class="text-sm text-slate-700 mt-1">${t.desc}</div>
+            </div>
+            ` : ''}
 
             <div class="absolute bottom-8 left-8 right-8 text-center border-t border-slate-100 pt-8">
                 <p class="text-xs text-slate-400 italic">Tekdemir Koltuk - Teşekkür Ederiz.</p>
@@ -267,10 +376,19 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-4 w-full lg:w-auto">
-             {renderBalanceBox('TL')}
-             {renderBalanceBox('USD')}
-             {renderBalanceBox('EUR')}
+          <div className="flex flex-col items-end gap-2 w-full lg:w-auto">
+             <div className="flex flex-wrap gap-4 w-full">
+                {renderBalanceBox('TL')}
+                {renderBalanceBox('USD')}
+                {renderBalanceBox('EUR')}
+             </div>
+             <button 
+                onClick={printFullStatement}
+                className="mt-2 text-slate-500 hover:text-slate-800 text-xs font-bold flex items-center bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition-colors"
+             >
+                <FileDown size={14} className="mr-1" />
+                Ekstre İndir / Yazdır (PDF)
+             </button>
           </div>
         </div>
 
@@ -356,10 +474,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     <td className="px-6 py-4 text-slate-600 whitespace-nowrap font-mono text-xs">{formatDate(t.date)}</td>
                     <td className="px-6 py-4 text-slate-800">
                       <div className="font-bold text-slate-700">
-                         {trType}
+                         {t.desc ? t.desc : trType}
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        {isInvoice ? t.items?.map(i => `${i.name} (${i.qty} ${i.unit})`).join(', ') : t.desc}
+                        {isInvoice ? t.items?.map(i => `${i.name} (${i.qty} ${i.unit})`).join(', ') : (t.desc ? trType : '')}
                       </div>
                     </td>
                      <td className="px-6 py-4">
@@ -418,6 +536,28 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 </tr>
               )}
             </tbody>
+            {/* Total Footer */}
+            <tfoot className="bg-slate-50 border-t border-slate-300">
+                <tr>
+                    <td colSpan={3} className="px-6 py-3 text-right font-bold text-slate-500 text-xs uppercase">GENEL TOPLAM BAKİYE:</td>
+                    <td colSpan={4} className="px-6 py-3 text-right">
+                        <div className="flex flex-col items-end gap-1">
+                             {['TL', 'USD', 'EUR'].map(curr => {
+                                 const bal = customer.balances[curr as 'TL'|'USD'|'EUR'];
+                                 if(bal === 0) return null;
+                                 return (
+                                     <div key={curr} className="font-mono text-sm font-black">
+                                        <span className={bal > 0 ? 'text-red-600' : 'text-green-600'}>
+                                            {bal > 0 ? '(Borç)' : '(Alacak)'} {Math.abs(bal).toLocaleString('tr-TR', {minimumFractionDigits: 2})} {curr}
+                                        </span>
+                                     </div>
+                                 )
+                             })}
+                             {Object.values(customer.balances).every(v => v === 0) && <span className="text-slate-400 text-xs">Bakiye Yok</span>}
+                        </div>
+                    </td>
+                </tr>
+            </tfoot>
           </table>
         </div>
       </div>

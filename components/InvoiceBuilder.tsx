@@ -1,18 +1,21 @@
+
 import React, { useState, useEffect } from 'react';
-import { Customer, Product, TransactionItem } from '../types';
-import { Save, Plus, Trash2, ShoppingCart, Calendar, Search, ArrowRight } from 'lucide-react';
+import { Customer, Product, TransactionItem, Transaction } from '../types';
+import { Save, Plus, Trash2, ShoppingCart, Calendar, Search, ArrowRight, Printer, Clock } from 'lucide-react';
 
 interface InvoiceBuilderProps {
   type: 'sales' | 'purchase';
   customers: Customer[];
   products: Product[];
-  onSave: (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR') => void;
+  transactions: Transaction[];
+  onSave: (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string) => void;
 }
 
-export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers, products, onSave }) => {
+export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers, products, transactions, onSave }) => {
   const [selectedCust, setSelectedCust] = useState<number | ''>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [currency, setCurrency] = useState<'TL' | 'USD' | 'EUR'>('TL');
+  const [desc, setDesc] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([
     { name: '', qty: 1, unit: 'Adet', price: 0, total: 0 }
   ]);
@@ -22,6 +25,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     setItems([{ name: '', qty: 1, unit: 'Adet', price: 0, total: 0 }]);
     setSelectedCust('');
     setCurrency('TL');
+    setDesc('');
   }, [type]);
 
   // Filter products based on invoice type
@@ -33,6 +37,12 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   const filteredCustomers = customers.filter(c => 
     type === 'sales' ? (c.type === 'musteri' || c.type === 'both') : (c.type === 'tedarikci' || c.type === 'both')
   );
+
+  // Get recent invoices of this type
+  const recentInvoices = transactions
+    .filter(t => t.type === (type === 'sales' ? 'sales' : 'purchase'))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 10);
 
   const handleProductChange = (index: number, productName: string) => {
     const product = products.find(p => p.name === productName);
@@ -79,7 +89,105 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         alert("Lütfen en az bir ürün giriniz.");
         return;
     }
-    onSave(Number(selectedCust), date, validItems, currency);
+    onSave(Number(selectedCust), date, validItems, currency, desc);
+  };
+
+  const printInvoice = (t: Transaction) => {
+      if (!t.items || !t.accId) return;
+      const cust = customers.find(c => c.id === t.accId);
+      if (!cust) return;
+
+      const formatDate = (d: string) => d.split('-').reverse().join('.');
+
+      const printWindow = window.open('', '', 'width=800,height=1000');
+      if (!printWindow) return;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Fatura - ${t.id}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+          <style>
+             body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; padding: 40px; }
+             @page { size: A4; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="max-w-2xl mx-auto border border-slate-200 p-8 bg-white min-h-[900px] relative">
+            
+            <div class="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-8">
+               <div>
+                  <h1 class="text-4xl font-black text-slate-900 tracking-widest">TEKDEMİR</h1>
+                  <div class="text-sm text-slate-500 font-bold tracking-[0.4em] uppercase mt-1">KOLTUK & MOBİLYA</div>
+               </div>
+               <div class="text-right">
+                  <div class="text-3xl font-light text-slate-400 uppercase tracking-wide">Fatura</div>
+                  <div class="text-sm font-bold text-slate-800 mt-2">#${t.id}</div>
+                  <div class="text-sm text-slate-600 mt-1">${formatDate(t.date)}</div>
+               </div>
+            </div>
+
+            <div class="mb-12 bg-slate-50 p-6 rounded-lg">
+                <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Sayın</div>
+                <h2 class="text-2xl font-bold text-slate-800">${cust.name}</h2>
+                <div class="text-slate-600 mt-2 text-sm">
+                    ${cust.address || 'Adres bilgisi girilmedi.'}<br>
+                    ${cust.phone || ''}
+                </div>
+            </div>
+
+            <table class="w-full text-sm mb-12">
+                <thead>
+                    <tr class="border-b-2 border-slate-800">
+                        <th class="text-left py-3 font-bold text-slate-900 uppercase tracking-wide">Ürün / Hizmet</th>
+                        <th class="text-center py-3 font-bold text-slate-900 uppercase tracking-wide">Miktar</th>
+                        <th class="text-right py-3 font-bold text-slate-900 uppercase tracking-wide">Birim Fiyat</th>
+                        <th class="text-right py-3 font-bold text-slate-900 uppercase tracking-wide">Tutar</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    ${t.items.map(item => `
+                        <tr>
+                            <td class="py-4 text-slate-800 font-medium">${item.name}</td>
+                            <td class="py-4 text-center text-slate-600">${item.qty} ${item.unit}</td>
+                            <td class="py-4 text-right text-slate-600 font-mono">${item.price.toLocaleString('tr-TR', {minimumFractionDigits:2})}</td>
+                            <td class="py-4 text-right text-slate-800 font-bold font-mono">${item.total.toLocaleString('tr-TR', {minimumFractionDigits:2})}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+
+            <div class="flex justify-end">
+                <div class="w-1/2">
+                    <div class="flex justify-between items-center py-4 border-t-2 border-slate-900">
+                        <span class="text-lg font-bold text-slate-900">GENEL TOPLAM</span>
+                        <span class="text-2xl font-black text-slate-900 font-mono">${t.total.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${t.currency}</span>
+                    </div>
+                </div>
+            </div>
+
+             ${t.desc ? `
+            <div class="mt-8 pt-4 border-t border-slate-100">
+                 <div class="text-xs font-bold text-slate-500 uppercase">Açıklama / Not:</div>
+                 <div class="text-sm text-slate-700 mt-1">${t.desc}</div>
+            </div>
+            ` : ''}
+
+            <div class="absolute bottom-8 left-8 right-8 text-center border-t border-slate-100 pt-8">
+                <p class="text-xs text-slate-400 italic">Tekdemir Koltuk - Teşekkür Ederiz.</p>
+            </div>
+
+          </div>
+          <script>
+             window.onload = () => { setTimeout(() => { window.print(); }, 500); }
+          </script>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   return (
@@ -153,6 +261,17 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
               <option value="USD">USD (Amerikan Doları)</option>
               <option value="EUR">EUR (Euro)</option>
             </select>
+          </div>
+          
+          <div className="md:col-span-12">
+            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Fatura Açıklaması (Opsiyonel)</label>
+            <input 
+                type="text"
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none bg-white text-sm placeholder:text-slate-400"
+                placeholder="Örn: Proje teslimatı 1. hakediş"
+                value={desc}
+                onChange={e => setDesc(e.target.value)}
+            />
           </div>
         </div>
 
@@ -262,6 +381,43 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
              </button>
           </div>
         </div>
+      </div>
+
+      {/* Recent Transactions List */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center">
+            <Clock size={18} className="text-slate-400 mr-2"/>
+            <h3 className="font-bold text-slate-700 text-sm uppercase">Son Eklenen {type === 'sales' ? 'Satış' : 'Alış'} Faturaları</h3>
+        </div>
+        <table className="w-full text-left text-sm">
+            <thead className="bg-white text-slate-500 text-xs border-b border-slate-100">
+                <tr>
+                    <th className="px-4 py-3">Tarih</th>
+                    <th className="px-4 py-3">Cari</th>
+                    <th className="px-4 py-3">Açıklama</th>
+                    <th className="px-4 py-3 text-right">Tutar</th>
+                    <th className="px-4 py-3 text-center">İşlem</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+                {recentInvoices.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">{t.date.split('-').reverse().join('.')}</td>
+                        <td className="px-4 py-3 font-medium text-slate-800">{t.accName}</td>
+                        <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]">{t.desc || (t.items ? `${t.items.length} Kalem` : '-')}</td>
+                        <td className="px-4 py-3 text-right font-bold font-mono text-slate-700">{t.total.toLocaleString('tr-TR', {minimumFractionDigits:2})} {t.currency}</td>
+                        <td className="px-4 py-3 text-center">
+                            <button onClick={() => printInvoice(t)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800" title="Yazdır">
+                                <Printer size={16} />
+                            </button>
+                        </td>
+                    </tr>
+                ))}
+                {recentInvoices.length === 0 && (
+                    <tr><td colSpan={5} className="p-6 text-center text-slate-400 text-xs">Henüz fatura girişi yapılmamış.</td></tr>
+                )}
+            </tbody>
+        </table>
       </div>
     </div>
   );

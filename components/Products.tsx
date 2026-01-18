@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Product } from '../types';
-import { Box, Plus, Tag, Ruler, Edit2, Trash2, Save, X, Search, Package } from 'lucide-react';
+import { Box, Plus, Tag, Ruler, Edit2, Trash2, Save, X, Search, Package, FileSpreadsheet } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface ProductsProps {
@@ -85,6 +85,32 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
 
       return matchesTab && matchesSearch;
   });
+
+  const handleExportExcel = () => {
+      // Create CSV with BOM for Excel compatibility
+      let csvContent = "\uFEFF"; 
+      csvContent += "Ürün Listesi\n\n";
+      csvContent += "ID;Ürün Adı;Tip;Kategori;Birim;Fiyat;Para Birimi\n";
+      
+      const exportList = activeTab === 'satilan' 
+        ? products.filter(p => p.type === 'satilan' || p.type === 'both')
+        : products.filter(p => p.type === 'alinan' || p.type === 'both');
+
+      exportList.forEach(p => {
+          const typeStr = p.type === 'satilan' ? 'Satılan' : p.type === 'alinan' ? 'Alınan' : 'Her İkisi';
+          const priceStr = p.price.toString().replace('.', ',');
+          csvContent += `${p.id};${p.name};${typeStr};${p.cat};${p.unit};${priceStr};${p.currency || 'TL'}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Urun_Listesi_${activeTab}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6">
@@ -205,8 +231,8 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                 Alınabilir Ürünler (Hammadde)
             </button>
           </div>
-          <div className="p-2 border-l border-slate-100 bg-slate-50 w-full sm:w-64">
-             <div className="relative">
+          <div className="p-2 border-l border-slate-100 bg-slate-50 w-full sm:w-80 flex items-center gap-2">
+             <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                 <input 
                     type="text" 
@@ -216,6 +242,13 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                     onChange={e => setSearchTerm(e.target.value)}
                 />
              </div>
+             <button 
+                onClick={handleExportExcel}
+                className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg shadow-sm transition-colors"
+                title="Listeyi Excel Olarak İndir"
+             >
+                 <FileSpreadsheet size={18} />
+             </button>
           </div>
         </div>
 

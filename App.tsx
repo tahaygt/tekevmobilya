@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
@@ -226,7 +227,7 @@ const App: React.FC = () => {
 
   // --- COMPLEX TRANSACTIONS ---
 
-  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR') => {
+  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string) => {
     const total = items.reduce((sum, item) => sum + item.total, 0);
     const type = activePage === 'invoice-sales' ? 'sales' : 'purchase';
     const customer = customers.find(c => c.id === customerId);
@@ -235,7 +236,14 @@ const App: React.FC = () => {
 
     const newTrans: Transaction = {
       id: Date.now(),
-      date, type, accId: customerId, accName: customer.name, currency, total, items
+      date, 
+      type, 
+      accId: customerId, 
+      accName: customer.name, 
+      currency, 
+      total, 
+      items,
+      desc // Added description
     };
 
     setSyncing(true);
@@ -450,7 +458,7 @@ const App: React.FC = () => {
             activePage === 'customers' ? <Customers customers={customers} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} /> :
             activePage === 'customer-detail' ? <CustomerDetail customer={customers.find(c => c.id === selectedCustId)!} transactions={transactions} safes={safes} onBack={() => setActivePage('customers')} onPayment={processPayment} onDeleteTransaction={deleteTransaction} onEditTransaction={handleEditTransaction} /> :
             activePage === 'products' ? <Products products={products} onAddProduct={addProduct} onEditProduct={editProduct} onDeleteProduct={deleteProduct} /> :
-            (activePage === 'invoice-sales' || activePage === 'invoice-purchase') ? <InvoiceBuilder type={activePage === 'invoice-sales' ? 'sales' : 'purchase'} customers={customers} products={products} onSave={processInvoice} /> :
+            (activePage === 'invoice-sales' || activePage === 'invoice-purchase') ? <InvoiceBuilder type={activePage === 'invoice-sales' ? 'sales' : 'purchase'} customers={customers} products={products} onSave={processInvoice} transactions={transactions} /> :
             activePage === 'cash' ? <Cash safes={safes} transactions={transactions} onAddSafe={addSafe} onEditSafe={editSafe} onDeleteSafe={deleteSafe} /> :
             <DailyReport transactions={transactions} customers={customers} />
         }
