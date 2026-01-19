@@ -10,7 +10,7 @@ import { InvoiceBuilder } from './components/InvoiceBuilder';
 import { Cash } from './components/Cash';
 import { DailyReport } from './components/DailyReport';
 import { Customer, Product, Safe, Transaction, TransactionItem, Page, PaymentMethod } from './types';
-import { LogOut, AlertCircle, Lock, Mail, RefreshCw, Database } from 'lucide-react';
+import { LogOut, AlertCircle, Lock, Mail, RefreshCw, Calculator, Store } from 'lucide-react';
 import { api } from './api';
 
 // --- FIREBASE CONFIGURATION ---
@@ -32,11 +32,12 @@ try {
 }
 
 // --- LOGIN SCREEN COMPONENT ---
-const LoginScreen: React.FC = () => {
+const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => void }> = ({ onPanelSelect }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [step, setStep] = useState<'auth' | 'select'>('auth');
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,6 +52,7 @@ const LoginScreen: React.FC = () => {
 
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            setStep('select'); // Move to selection step
         } catch (err: any) {
             console.error(err);
             if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
@@ -64,6 +66,55 @@ const LoginScreen: React.FC = () => {
             setLoading(false);
         }
     };
+
+    if (step === 'select') {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                <div className="w-full max-w-2xl">
+                    <div className="text-center mb-10">
+                        <h1 className="text-4xl font-black text-white tracking-widest mb-2">PANEL SEÇİMİ</h1>
+                        <p className="text-slate-400">Lütfen giriş yapmak istediğiniz bölümü seçiniz.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Muhasebe Butonu */}
+                        <button 
+                            onClick={() => onPanelSelect('accounting')}
+                            className="group relative bg-white rounded-3xl p-8 hover:bg-sky-50 transition-all duration-300 shadow-2xl hover:-translate-y-2 border-4 border-transparent hover:border-sky-500"
+                        >
+                            <div className="bg-sky-100 w-20 h-20 rounded-2xl flex items-center justify-center mb-6 text-sky-600 group-hover:scale-110 transition-transform">
+                                <Calculator size={40} />
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-800 mb-2">MUHASEBE</h2>
+                            <p className="text-slate-500 text-sm leading-relaxed">
+                                Cari hesaplar, faturalar, kasa takibi ve finansal raporlar.
+                            </p>
+                            <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity text-sky-600 font-bold flex items-center">
+                                Giriş Yap <span className="ml-2">→</span>
+                            </div>
+                        </button>
+
+                        {/* Mağaza Butonu */}
+                        <button 
+                            onClick={() => onPanelSelect('store')}
+                            className="group relative bg-white rounded-3xl p-8 hover:bg-orange-50 transition-all duration-300 shadow-2xl hover:-translate-y-2 border-4 border-transparent hover:border-orange-500"
+                        >
+                            <div className="bg-orange-100 w-20 h-20 rounded-2xl flex items-center justify-center mb-6 text-orange-600 group-hover:scale-110 transition-transform">
+                                <Store size={40} />
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-800 mb-2">MAĞAZA</h2>
+                            <p className="text-slate-500 text-sm leading-relaxed">
+                                Ürün stokları, hızlı satış ekranı ve mağaza yönetimi.
+                            </p>
+                            <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity text-orange-600 font-bold flex items-center">
+                                Giriş Yap <span className="ml-2">→</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -115,6 +166,7 @@ const LoginScreen: React.FC = () => {
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [panelMode, setPanelMode] = useState<'accounting' | 'store' | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -134,9 +186,13 @@ const App: React.FC = () => {
     if (auth) {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
-            setLoadingAuth(false);
             if (currentUser) {
-                loadData();
+                // User logged in, but we wait for panel selection to load data
+                // In a real app, you might auto-select based on role
+                setLoadingAuth(false);
+            } else {
+                setPanelMode(null);
+                setLoadingAuth(false);
             }
         });
         return () => unsubscribe();
@@ -174,6 +230,11 @@ const App: React.FC = () => {
       } finally {
           setLoadingData(false);
       }
+  };
+
+  const handlePanelSelect = (mode: 'accounting' | 'store') => {
+      setPanelMode(mode);
+      loadData(); // Load data after panel selection
   };
 
   // --- ACTIONS (Optimistic Updates + API Calls) ---
@@ -284,7 +345,7 @@ const App: React.FC = () => {
     setActivePage('customers');
   };
 
-  const processPayment = async (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string) => {
+  const processPayment = async (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string, date: string) => {
      if (!selectedCustId) return;
      const customer = customers.find(c => c.id === selectedCustId);
      const safe = safes.find(s => s.id === safeId);
@@ -295,7 +356,7 @@ const App: React.FC = () => {
 
      const newTrans: Transaction = {
          id: Date.now(),
-         date: new Date().toISOString().split('T')[0],
+         date: date, // Use the passed date
          type: transType,
          accId: customer.id,
          accName: customer.name,
@@ -459,8 +520,8 @@ const App: React.FC = () => {
       );
   }
 
-  if (!user) {
-      return <LoginScreen />;
+  if (!user || !panelMode) {
+      return <LoginScreen onPanelSelect={handlePanelSelect} />;
   }
 
   return (

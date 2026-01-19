@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Transaction, Customer, PaymentMethod } from '../types';
-import { Printer, Download, Calendar, Edit3, Check, FileText, FileSpreadsheet, Filter } from 'lucide-react';
+import { Printer, Download, Calendar, Edit3, Check, FileText, FileSpreadsheet, Filter, Box } from 'lucide-react';
 
 interface DailyReportProps {
   transactions: Transaction[];
@@ -80,6 +80,27 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
   const invoices = activeTab === 'daily' ? getDailyInvoices(transactions, selectedDate) : [];
 
+  // Monthly Product Sales Count Logic
+  const productSalesSummary = useMemo(() => {
+      if (activeTab !== 'monthly') return [];
+      
+      const sales = activeTransactions.filter(t => t.type === 'sales' && t.items);
+      const productCounts: Record<string, number> = {};
+
+      sales.forEach(sale => {
+          sale.items?.forEach(item => {
+              if (productCounts[item.name]) {
+                  productCounts[item.name] += item.qty;
+              } else {
+                  productCounts[item.name] = item.qty;
+              }
+          });
+      });
+
+      return Object.entries(productCounts).sort((a, b) => b[1] - a[1]); // Sort by count desc
+  }, [activeTransactions, activeTab]);
+
+
   // -- FORMATTERS --
   const formatDate = (d: string) => d.split('-').reverse().join('.');
   const formatMoney = (amount: number, currency: string = 'TL') => `${amount.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currency}`;
@@ -91,6 +112,16 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       if(c.balances.USD !== 0) parts.push(formatMoney(c.balances.USD, 'USD'));
       if(c.balances.EUR !== 0) parts.push(formatMoney(c.balances.EUR, 'EUR'));
       return parts.length > 0 ? parts.join(' | ') : '0.00';
+  };
+
+  // Helper to get description with product names if invoice
+  const getTransactionDesc = (t: Transaction) => {
+      let mainDesc = t.desc || getTrType(t.type, !!t.items);
+      if (t.items && t.items.length > 0) {
+          const productNames = t.items.map(i => i.name).join(', ');
+          mainDesc += ` (${productNames})`;
+      }
+      return mainDesc;
   };
 
   // -- PER CUSTOMER EXPORT LOGIC --
@@ -110,8 +141,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         const creditStr = isCredit ? t.total.toString().replace('.', ',') : '';
         const totalStr = t.total.toString().replace('.', ',');
         const trType = getTrType(t.type, !!t.items);
+        const fullDesc = getTransactionDesc(t).replace(/"/g, '""');
         
-        csvContent += `${formatDate(t.date)};${trType};"${t.desc || ''}";${debtStr};${creditStr};${totalStr};${t.currency}\n`;
+        csvContent += `${formatDate(t.date)};${trType};"${fullDesc}";${debtStr};${creditStr};${totalStr};${t.currency}\n`;
       });
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -174,10 +206,14 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                     const isDebt = t.type === 'sales' || t.type === 'cash_out';
                     const isCredit = t.type === 'purchase' || t.type === 'cash_in';
                     const trType = getTrType(t.type, !!t.items);
+                    // Inline helper for description in HTML
+                    let fullDesc = t.desc || trType;
+                    if (t.items && t.items.length > 0) fullDesc += ` (${t.items.map(i=>i.name).join(', ')})`;
+
                     return `
                       <tr>
                         <td class="py-2 px-2 text-slate-500">${formatDate(t.date)}</td>
-                        <td class="py-2 px-2 text-slate-800 font-medium">${t.desc || trType}</td>
+                        <td class="py-2 px-2 text-slate-800 font-medium">${fullDesc}</td>
                         <td class="py-2 px-2 text-right font-mono ${isDebt ? 'text-red-600' : ''}">
                            ${isDebt ? t.total.toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}
                         </td>
@@ -217,10 +253,11 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
   // -- GLOBAL EXPORT --
   const handleGlobalExport = () => {
-    let csvContent = "\uFEFFTarih;Cari;Islem;Tutar;Para Birimi\n";
+    let csvContent = "\uFEFFTarih;Cari;Islem;Aciklama;Tutar;Para Birimi\n";
     activeTransactions.forEach(t => {
         const trType = getTrType(t.type, !!t.items);
-        csvContent += `${t.date};${t.accName || '-'};${t.desc || trType};${t.total.toString().replace('.',',')};${t.currency}\n`;
+        const fullDesc = getTransactionDesc(t).replace(/"/g, '""');
+        csvContent += `${t.date};${t.accName || '-'};${trType};"${fullDesc}";${t.total.toString().replace('.',',')};${t.currency}\n`;
     });
     const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
     const link = document.createElement("a");
@@ -361,7 +398,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                             {custTrans.map((t, idx) => (
                                 <div key={t.id} className="grid grid-cols-12 py-1 px-2 border-b border-slate-100 last:border-b-0 text-[10px] items-center hover:bg-yellow-50 transition-colors">
                                     <div className="col-span-2 text-slate-400 pl-1">{formatDate(t.date)}</div>
-                                    <div className="col-span-4 truncate px-1 font-medium text-slate-700">{t.desc || (t.items ? 'Fatura' : getTrType(t.type, false))}</div>
+                                    <div className="col-span-4 truncate px-1 font-medium text-slate-700">
+                                        {getTransactionDesc(t)}
+                                    </div>
                                     <div className="col-span-2 text-right px-1 font-mono">{(t.type === 'cash_in' || t.type === 'cash_out') ? formatMoney(t.total, t.currency) : ''}</div>
                                     <div className="col-span-2 text-right px-1 font-mono">{(t.type === 'sales' || t.type === 'purchase') ? formatMoney(t.total, t.currency) : ''}</div>
                                     <div className="col-span-2 text-right px-1 font-mono font-bold text-slate-900 truncate" title={getCustBalancesStr(cust)}>
@@ -445,6 +484,25 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                  </div>
              </div>
         </div>
+
+        {/* 4. Monthly Product Sales Summary (Only if Monthly Tab is active) */}
+        {activeTab === 'monthly' && productSalesSummary.length > 0 && (
+             <div className="mt-8 border border-slate-400 break-inside-avoid">
+                <div className="bg-slate-800 text-white font-bold text-center py-2 uppercase text-xs flex items-center justify-center">
+                    <Box size={14} className="mr-2"/> Aylık Satılan Ürün Özeti
+                </div>
+                <div className="grid grid-cols-2 bg-slate-100 text-[10px] font-bold uppercase py-1 border-b border-slate-300">
+                    <div className="px-4">Ürün Adı</div>
+                    <div className="px-4 text-right">Satılan Adet</div>
+                </div>
+                {productSalesSummary.map(([name, count], index) => (
+                    <div key={index} className="grid grid-cols-2 text-[10px] py-1 border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                        <div className="px-4 text-slate-700 font-medium">{name}</div>
+                        <div className="px-4 text-right font-mono font-bold text-slate-900">{count}</div>
+                    </div>
+                ))}
+             </div>
+        )}
         
         <div className="mt-8 text-[10px] text-slate-300 text-center uppercase tracking-widest font-light">
             Tekdemir Koltuk Yönetim Sistemleri v14

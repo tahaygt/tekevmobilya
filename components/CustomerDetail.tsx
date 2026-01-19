@@ -9,7 +9,7 @@ interface CustomerDetailProps {
   transactions: Transaction[];
   safes: Safe[];
   onBack: () => void;
-  onPayment: (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string) => void;
+  onPayment: (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string, date: string) => void;
   onDeleteTransaction: (id: number) => void;
   onEditTransaction: (transaction: Transaction) => void; 
 }
@@ -54,9 +54,37 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
   // Filter and Sort Logic
   const filteredTransactions = useMemo(() => {
-    return transactions
+    // 1. Get all transactions for this customer and Sort ASCENDING (Oldest first) for running balance
+    const sortedAll = transactions
       .filter(t => t.accId === customer.id)
-      .filter(t => {
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // 2. Calculate Running Balances
+    const runningBalances = { TL: 0, USD: 0, EUR: 0 };
+    
+    // We attach the calculated balance to each transaction
+    const withBalance = sortedAll.map(t => {
+        const isDebt = t.type === 'sales' || t.type === 'cash_out';
+        const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+        
+        let amount = t.total;
+        if (isDebt) {
+            // Debt (Borç) increases (+ balance)
+            runningBalances[t.currency] += amount;
+        } else if (isCredit) {
+            // Credit (Alacak) decreases (- balance)
+            runningBalances[t.currency] -= amount;
+        }
+
+        return {
+            ...t,
+            snapshotBalance: runningBalances[t.currency] // Store the balance of *this currency* at this point
+        };
+    });
+
+    // 3. Apply Filters (Search, Type)
+    // IMPORTANT: We filter AFTER calculating running balance so the numbers make sense historically
+    return withBalance.filter(t => {
           // Search Check
           const searchLower = searchTerm.toLowerCase();
           const matchesSearch = 
@@ -71,14 +99,15 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
           if (activeFilter === 'collection') return t.type === 'cash_in';
           if (activeFilter === 'payment') return t.type === 'cash_out';
           return true;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      });
+      // We keep the ASCENDING order (Oldest -> Newest) as requested
   }, [transactions, customer.id, searchTerm, activeFilter]);
 
   // Handle New Payment Submit
   const handleSubmit = () => {
     if (!amount || !selectedSafe) return;
-    onPayment(parseFloat(amount), modalMode!, selectedSafe, selectedCurrency, paymentMethod, desc);
+    // Pass selectedDate to the parent handler
+    onPayment(parseFloat(amount), modalMode!, selectedSafe, selectedCurrency, paymentMethod, desc, selectedDate);
     resetForm();
   };
 
@@ -462,7 +491,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 <th className="px-6 py-4 font-bold uppercase text-xs">Tür / Yöntem</th>
                 <th className="px-6 py-4 font-bold uppercase text-xs text-right text-red-600">Borç</th>
                 <th className="px-6 py-4 font-bold uppercase text-xs text-right text-green-600">Alacak</th>
-                <th className="px-6 py-4 font-bold uppercase text-xs text-center w-24">PB</th>
+                <th className="px-6 py-4 font-bold uppercase text-xs text-center">Bakiye</th>
                 <th className="px-6 py-4 font-bold uppercase text-xs text-center w-32">İşlem</th>
               </tr>
             </thead>
@@ -473,6 +502,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 const isInvoice = !!t.items;
                 const trType = getTrType(t.type, isInvoice);
                 const trMethod = getTrMethod(t.method);
+                
+                // Snapshot balance from the calculation
+                const snapshotBalance = (t as any).snapshotBalance || 0;
                 
                 return (
                   <tr key={t.id} className="hover:bg-slate-50/80 group transition-colors">
@@ -497,8 +529,13 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     <td className="px-6 py-4 text-right font-bold text-green-600 font-mono">
                       {isCredit ? t.total.toLocaleString('tr-TR', {minimumFractionDigits: 2}) : <span className="text-slate-200">-</span>}
                     </td>
-                    <td className="px-6 py-4 text-center text-slate-400 text-xs font-bold">
-                        {t.currency}
+                    <td className="px-6 py-4 text-center">
+                        <div className={`font-mono font-bold text-xs ${snapshotBalance > 0 ? 'text-red-600' : snapshotBalance < 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                            {snapshotBalance === 0 ? '-' : Math.abs(snapshotBalance).toLocaleString('tr-TR', {minimumFractionDigits: 2})} {t.currency}
+                            <div className="text-[9px] opacity-60">
+                                {snapshotBalance > 0 ? '(Borç)' : snapshotBalance < 0 ? '(Alacak)' : ''}
+                            </div>
+                        </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-1 opacity-100">
