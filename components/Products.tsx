@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Product } from '../types';
-import { Box, Plus, Tag, Ruler, Edit2, Trash2, Save, X, Search, Package, FileSpreadsheet } from 'lucide-react';
+import { Box, Plus, Tag, Ruler, Edit2, Trash2, Save, X, Search, Package, FileSpreadsheet, DollarSign } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface ProductsProps {
@@ -21,7 +21,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   // New Product State
-  const initialNewProd = { name: '', type: 'satilan', unit: '', cat: '', price: '', currency: 'TL' };
+  const initialNewProd = { name: '', type: 'satilan', unit: '', cat: '', purchasePrice: '', price: '', currency: 'TL' };
   
   // We use a temporary state that holds strings for inputs
   const [newProd, setNewProd] = useState<{
@@ -29,6 +29,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
       type: 'satilan'|'alinan'|'both', 
       unit: string, 
       cat: string, 
+      purchasePrice: string,
       price: string,
       currency: 'TL' | 'USD' | 'EUR'
   }>({ ...initialNewProd, type: 'satilan', currency: 'TL' });
@@ -42,6 +43,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
       ...newProd,
       unit: newProd.unit || 'Adet',
       type: newProd.type,
+      purchasePrice: parseFloat(newProd.purchasePrice) || 0,
       price: parseFloat(newProd.price) || 0,
       currency: newProd.currency
     });
@@ -80,8 +82,8 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
         ? (p.type === 'satilan' || p.type === 'both') 
         : (p.type === 'alinan' || p.type === 'both');
       
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            p.cat.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            (p.cat || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       return matchesTab && matchesSearch;
   });
@@ -90,7 +92,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
       // Create CSV with BOM for Excel compatibility
       let csvContent = "\uFEFF"; 
       csvContent += "Ürün Listesi\n\n";
-      csvContent += "ID;Ürün Adı;Tip;Kategori;Birim;Fiyat;Para Birimi\n";
+      csvContent += "ID;Ürün Adı;Tip;Kategori;Birim;Alış Fiyatı;Satış Fiyatı;Para Birimi\n";
       
       const exportList = activeTab === 'satilan' 
         ? products.filter(p => p.type === 'satilan' || p.type === 'both')
@@ -98,8 +100,9 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
 
       exportList.forEach(p => {
           const typeStr = p.type === 'satilan' ? 'Satılan' : p.type === 'alinan' ? 'Alınan' : 'Her İkisi';
+          const purchasePriceStr = (p.purchasePrice || 0).toString().replace('.', ',');
           const priceStr = p.price.toString().replace('.', ',');
-          csvContent += `${p.id};${p.name};${typeStr};${p.cat};${p.unit};${priceStr};${p.currency || 'TL'}\n`;
+          csvContent += `${p.id};${p.name};${typeStr};${p.cat};${p.unit};${purchasePriceStr};${priceStr};${p.currency || 'TL'}\n`;
       });
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -151,16 +154,6 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
             </select>
           </div>
 
-          <div className="md:col-span-2 space-y-1">
-            <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Kategori</label>
-            <input
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary outline-none text-sm"
-                placeholder="Örn: Kumaş"
-                value={newProd.cat}
-                onChange={e => setNewProd({...newProd, cat: e.target.value})}
-            />
-          </div>
-
           <div className="md:col-span-1 space-y-1">
              <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Birim</label>
              <input
@@ -180,7 +173,18 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
           </div>
           
           <div className="md:col-span-2 space-y-1">
-             <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Birim Fiyat</label>
+             <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Alış Fiyatı</label>
+             <input
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary outline-none text-sm font-mono"
+                placeholder="0.00"
+                type="number"
+                value={newProd.purchasePrice}
+                onChange={e => setNewProd({...newProd, purchasePrice: e.target.value})}
+            />
+          </div>
+
+          <div className="md:col-span-2 space-y-1">
+             <label className="text-[10px] uppercase font-bold text-slate-500 ml-1">Satış Fiyatı</label>
              <div className="flex">
                 <input
                     className="w-full border border-slate-200 border-r-0 rounded-l-xl px-3 py-2.5 focus:ring-2 focus:ring-primary outline-none text-sm font-mono font-bold"
@@ -257,10 +261,10 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
               <tr>
                 <th className="px-6 py-4">Ürün Adı</th>
-                <th className="px-6 py-4">Kullanım Tipi</th>
-                <th className="px-6 py-4">Kategori</th>
+                <th className="px-6 py-4">Tip</th>
                 <th className="px-6 py-4">Birim</th>
-                <th className="px-6 py-4 text-right">Birim Fiyat</th>
+                <th className="px-6 py-4 text-right">Alış Fiyatı</th>
+                <th className="px-6 py-4 text-right">Satış Fiyatı</th>
                 <th className="px-6 py-4 text-center">İşlem</th>
               </tr>
             </thead>
@@ -276,6 +280,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                         <div className="flex items-center">
                             <Box size={16} className="mr-3 text-slate-400" />
                             {p.name}
+                            <span className="ml-2 text-[10px] text-slate-400 bg-slate-100 px-1 rounded">{p.cat}</span>
                         </div>
                      )}
                   </td>
@@ -290,17 +295,8 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border
                             ${p.type === 'satilan' ? 'bg-blue-50 text-blue-600 border-blue-100' : p.type === 'alinan' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-purple-50 text-purple-600 border-purple-100'}
                         `}>
-                            {p.type === 'satilan' ? 'Satış Ürünü' : p.type === 'alinan' ? 'Hammadde/Gider' : 'Alım & Satım'}
+                            {p.type === 'satilan' ? 'Satış' : p.type === 'alinan' ? 'Alış' : 'Both'}
                         </span>
-                     )}
-                  </td>
-                  <td className="px-6 py-3 text-slate-500">
-                    {editing ? (
-                        <input className="border border-primary rounded-lg px-2 py-1.5 w-full text-xs outline-none bg-white" value={editForm.cat} onChange={e => setEditForm({...editForm, cat: e.target.value})} />
-                     ) : (
-                        <div className="flex items-center gap-1.5">
-                            <Tag size={14} className="text-slate-300"/> {p.cat}
-                        </div>
                      )}
                   </td>
                   <td className="px-6 py-3 text-slate-500">
@@ -311,6 +307,13 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                             <Ruler size={14} className="text-slate-300"/> {p.unit}
                         </div>
                      )}
+                  </td>
+                  <td className="px-6 py-3 text-right font-mono text-slate-500">
+                      {editing ? (
+                        <input type="number" className="border border-primary rounded-lg px-2 py-1.5 w-20 text-right text-xs outline-none bg-white" value={editForm.purchasePrice || ''} onChange={e => setEditForm({...editForm, purchasePrice: parseFloat(e.target.value)})} />
+                      ) : (
+                          p.purchasePrice ? `${p.purchasePrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}` : '-'
+                      )}
                   </td>
                   <td className="px-6 py-3 text-right font-mono font-bold text-slate-700">
                      {editing ? (

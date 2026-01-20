@@ -3,9 +3,9 @@ export interface Customer {
   id: number;
   name: string;
   type: 'musteri' | 'tedarikci' | 'both';
+  section: 'accounting' | 'store'; // Bölüm ayrımı
   phone?: string;
   address?: string;
-  // Changed from single currency/balance to multi-currency balances object
   balances: {
     TL: number;
     USD: number;
@@ -16,11 +16,11 @@ export interface Customer {
 export interface Product {
   id: number;
   type: 'satilan' | 'alinan' | 'both';
-  // code field removed from Product definition
   name: string;
   unit: string;
   cat: string;
-  price: number;
+  purchasePrice: number; // Yeni: Alış Fiyatı
+  price: number; // Satış Fiyatı
   currency: 'TL' | 'USD' | 'EUR';
 }
 
@@ -35,9 +35,9 @@ export interface Safe {
 }
 
 export interface TransactionItem {
-  code?: string; // Kept here for manual entry in Purchase Invoices
+  code?: string;
   name: string;
-  description?: string; // Added line item description
+  description?: string;
   qty: number;
   unit: string;
   price: number;
@@ -50,6 +50,7 @@ export interface Transaction {
   id: number;
   date: string;
   type: 'sales' | 'purchase' | 'cash_in' | 'cash_out';
+  section: 'accounting' | 'store'; // Bölüm ayrımı
   accId?: number;
   accName?: string;
   safeId?: number;
@@ -58,6 +59,7 @@ export interface Transaction {
   items?: TransactionItem[];
   desc?: string;
   method?: PaymentMethod;
+  linkedTransactionId?: number; // Fatura kapama için bağlantı ID
 }
 
 export type Page = 'customers' | 'customer-detail' | 'products' | 'invoice-sales' | 'invoice-purchase' | 'cash' | 'report';

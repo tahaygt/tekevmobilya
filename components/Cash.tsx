@@ -28,8 +28,8 @@ export const Cash: React.FC<CashProps> = ({ safes, transactions, onAddSafe, onEd
            // Search Logic
            const searchLower = searchTerm.toLowerCase();
            const matchesSearch = 
-             (t.desc?.toLowerCase().includes(searchLower)) ||
-             (t.accName?.toLowerCase().includes(searchLower)) ||
+             ((t.desc || '').toLowerCase().includes(searchLower)) ||
+             ((t.accName || '').toLowerCase().includes(searchLower)) ||
              (t.total.toString().includes(searchLower));
            
            if (!matchesSearch) return false;

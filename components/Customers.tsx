@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Customer } from '../types';
-import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck } from 'lucide-react';
+import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck, Store } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomersProps {
@@ -10,10 +10,11 @@ interface CustomersProps {
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (id: number) => void;
   onSelectCustomer: (id: number) => void;
+  panelMode: 'accounting' | 'store';
 }
 
 export const Customers: React.FC<CustomersProps> = ({ 
-  customers, onAddCustomer, onEditCustomer, onDeleteCustomer, onSelectCustomer 
+  customers, onAddCustomer, onEditCustomer, onDeleteCustomer, onSelectCustomer, panelMode
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -23,7 +24,15 @@ export const Customers: React.FC<CustomersProps> = ({
   const [deleteId, setDeleteId] = useState<number | null>(null);
   
   // Form State
-  const initialForm: Customer = { id: 0, name: '', type: 'musteri', phone: '', address: '', balances: { TL: 0, USD: 0, EUR: 0 } };
+  const initialForm: Customer = { 
+      id: 0, 
+      name: '', 
+      type: 'musteri', 
+      section: panelMode, // Create in current section
+      phone: '', 
+      address: '', 
+      balances: { TL: 0, USD: 0, EUR: 0 } 
+  };
   const [formData, setFormData] = useState<Customer>(initialForm);
 
   const handleSubmit = () => {
@@ -35,7 +44,8 @@ export const Customers: React.FC<CustomersProps> = ({
     } else {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, balances, ...rest } = formData;
-      onAddCustomer(rest);
+      // Ensure section is set to current panel mode
+      onAddCustomer({ ...rest, section: panelMode });
     }
     setFormData(initialForm);
     setShowForm(false);
@@ -55,9 +65,10 @@ export const Customers: React.FC<CustomersProps> = ({
     }
   };
 
-  const filtered = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter customers by SECTION (Store vs Accounting)
+  const filtered = customers
+    .filter(c => (c.section === panelMode || (!c.section && panelMode === 'accounting'))) // Backward compat for old records -> accounting
+    .filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
   const formatBalance = (amount: number, curr: string) => {
       if(amount === 0) return null;
@@ -84,17 +95,17 @@ export const Customers: React.FC<CustomersProps> = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
                 type="text"
-                placeholder="Cari adı, telefon veya adres ara..."
+                placeholder={panelMode === 'store' ? "Şube veya cari adı ara..." : "Cari adı, telefon veya adres ara..."}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
             />
         </div>
         <button 
-            onClick={() => { setShowForm(!showForm); setIsEditing(false); setFormData(initialForm); }}
-            className={`px-6 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center ${showForm && !isEditing ? 'bg-slate-500' : 'bg-primary hover:bg-sky-600'}`}
+            onClick={() => { setShowForm(!showForm); setIsEditing(false); setFormData({...initialForm, section: panelMode}); }}
+            className={`px-6 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center ${showForm && !isEditing ? 'bg-slate-500' : panelMode === 'store' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-primary hover:bg-sky-600'}`}
         >
-            {showForm && !isEditing ? 'Vazgeç' : <><Plus className="mr-2" size={20} /> Yeni Cari Ekle</>}
+            {showForm && !isEditing ? 'Vazgeç' : <><Plus className="mr-2" size={20} /> {panelMode === 'store' ? 'Yeni Şube/Cari Ekle' : 'Yeni Cari Ekle'}</>}
         </button>
       </div>
 
@@ -103,7 +114,7 @@ export const Customers: React.FC<CustomersProps> = ({
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 animate-[fadeIn_0.2s_ease-out]">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center pb-4 border-b border-slate-100">
             {isEditing ? <Edit2 className="mr-2 text-orange-500" size={20} /> : <Plus className="mr-2 text-primary" size={20} />}
-            {isEditing ? 'Cari Bilgilerini Düzenle' : 'Yeni Cari Kartı Oluştur'}
+            {isEditing ? 'Cari Bilgilerini Düzenle' : (panelMode === 'store' ? 'Yeni Şube/Cari Tanımla' : 'Yeni Cari Kartı Oluştur')}
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -114,7 +125,7 @@ export const Customers: React.FC<CustomersProps> = ({
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
-                placeholder="Örn: Tekdemir Mobilya A.Ş."
+                placeholder={panelMode === 'store' ? "Örn: Şube 1, Perakende Müşteri..." : "Örn: Tekdemir Mobilya A.Ş."}
                 />
             </div>
             
@@ -127,7 +138,7 @@ export const Customers: React.FC<CustomersProps> = ({
                 >
                     <option value="musteri">Müşteri</option>
                     <option value="tedarikci">Tedarikçi</option>
-                    <option value="both">Her İkisi (Müşteri & Tedarikçi)</option>
+                    <option value="both">Her İkisi</option>
                 </select>
             </div>
 
@@ -159,7 +170,7 @@ export const Customers: React.FC<CustomersProps> = ({
                     onClick={handleSubmit}
                     className={`flex-1 text-white px-4 py-2.5 rounded-lg transition-colors font-bold shadow-md ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}
                     >
-                    {isEditing ? 'Değişiklikleri Kaydet' : 'Cariyi Kaydet'}
+                    {isEditing ? 'Değişiklikleri Kaydet' : 'Kaydet'}
                     </button>
                     <button 
                     onClick={() => { setShowForm(false); setIsEditing(false); setFormData(initialForm); }}
@@ -194,9 +205,9 @@ export const Customers: React.FC<CustomersProps> = ({
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white shadow-sm
-                            ${c.type === 'musteri' ? 'bg-blue-500' : c.type === 'tedarikci' ? 'bg-orange-500' : 'bg-purple-500'}
+                            ${panelMode === 'store' ? 'bg-orange-500' : c.type === 'musteri' ? 'bg-blue-500' : 'bg-purple-500'}
                         `}>
-                            {c.type === 'musteri' ? <User size={18} /> : c.type === 'tedarikci' ? <Truck size={18} /> : <Building size={18} />}
+                            {panelMode === 'store' ? <Store size={18}/> : <User size={18} />}
                         </div>
                         <div>
                             <div className="font-bold text-slate-800">{c.name}</div>
@@ -207,7 +218,6 @@ export const Customers: React.FC<CustomersProps> = ({
                   <td className="px-6 py-4 text-sm text-slate-600">
                     {c.phone && <div className="flex items-center gap-1.5 mb-1"><Phone size={14} className="text-slate-400"/> {c.phone}</div>}
                     {c.address && <div className="flex items-center gap-1.5 text-xs text-slate-500 max-w-[200px] truncate" title={c.address}><MapPin size={14} className="text-slate-400"/> {c.address}</div>}
-                    {!c.phone && !c.address && <span className="text-slate-300 text-xs italic">İletişim bilgisi yok</span>}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border 
@@ -263,7 +273,7 @@ export const Customers: React.FC<CustomersProps> = ({
                     <div className="flex flex-col items-center">
                         <Search size={48} className="text-slate-200 mb-4" />
                         <p className="font-medium">Kayıt bulunamadı.</p>
-                        <p className="text-xs mt-1">Arama kriterlerini değiştirin veya yeni cari ekleyin.</p>
+                        <p className="text-xs mt-1">{panelMode === 'store' ? 'Şube veya cari ekleyin.' : 'Yeni cari ekleyin.'}</p>
                     </div>
                   </td>
                 </tr>
