@@ -51,7 +51,7 @@ export interface Transaction {
   date: string;
   type: 'sales' | 'purchase' | 'cash_in' | 'cash_out';
   section: 'accounting' | 'store'; // Bölüm ayrımı
-  accId?: number;
+  accId?: number; // BORÇLU OLAN MÜŞTERİ (Perakende Müşterisi)
   accName?: string;
   safeId?: number;
   currency: 'TL' | 'USD' | 'EUR';
@@ -60,6 +60,19 @@ export interface Transaction {
   desc?: string;
   method?: PaymentMethod;
   linkedTransactionId?: number; // Fatura kapama için bağlantı ID
+  
+  // Şube/Satış Yeri Bilgisi
+  branchId?: number; // SATIŞI YAPAN ŞUBE
+  
+  // Teslimat Detayları
+  retailName?: string; // Fatura üzerindeki görünen isim (Opsiyonel)
+  retailPhone1?: string;
+  retailPhone2?: string;
+  retailAddress?: string;
+  deliveryDate?: string;
+  
+  // İrsaliye Görseli
+  deliveryNoteUrl?: string; // Google Drive Linki
 }
 
 export type Page = 'customers' | 'customer-detail' | 'products' | 'invoice-sales' | 'invoice-purchase' | 'cash' | 'report';

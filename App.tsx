@@ -270,7 +270,7 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
 
-  const addCustomer = async (data: Omit<Customer, 'id' | 'balances'>) => {
+  const addCustomer = async (data: Omit<Customer, 'id' | 'balances'>): Promise<Customer> => {
     const mode = getMode();
     const newCustomer: Customer = { 
         ...data, 
@@ -282,6 +282,7 @@ const App: React.FC = () => {
     setSyncing(true);
     await api.create('customers', newCustomer, mode);
     setSyncing(false);
+    return newCustomer;
   };
 
   const editCustomer = async (updated: Customer) => {
@@ -350,7 +351,7 @@ const App: React.FC = () => {
       setSyncing(false);
   };
 
-  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string) => {
+  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => {
     const mode = getMode();
     const total = items.reduce((sum, item) => sum + item.total, 0);
     const type = activePage === 'invoice-sales' ? 'sales' : 'purchase';
@@ -358,8 +359,11 @@ const App: React.FC = () => {
     
     if (!customer) return;
 
+    // Transaction ID oluştur
+    const newId = Date.now();
+
     const newTrans: Transaction = {
-      id: Date.now(),
+      id: newId,
       date, 
       type, 
       accId: customerId, 
@@ -368,11 +372,13 @@ const App: React.FC = () => {
       total, 
       items,
       desc,
-      section: mode 
+      section: mode,
+      ...(retailDetails || {})
     };
 
     setSyncing(true);
-    // Optimistic Update
+    
+    // Optimistic Update (Dosya yüklemesi sürerken arayüzde gösterelim)
     setTransactions(prev => [...prev, newTrans]);
     
     const currentBal = customer.balances[currency] || 0;
@@ -382,7 +388,12 @@ const App: React.FC = () => {
     setCustomers(prev => prev.map(c => c.id === customerId ? updatedCustomer : c));
 
     // API Calls
-    await api.create('transactions', newTrans, mode);
+    // Eğer dosya varsa, payload içine fileData ekliyoruz. Backend bunu algılayıp Drive'a atacak.
+    const transactionPayload = fileData 
+        ? { ...newTrans, fileData: { fileName: fileData.name, mimeType: fileData.type, fileData: fileData.base64 } } 
+        : newTrans;
+
+    await api.create('transactions', transactionPayload, mode);
     await api.update('customers', updatedCustomer, mode);
 
     setSyncing(false);
@@ -557,7 +568,7 @@ const App: React.FC = () => {
             activePage === 'customers' ? <Customers customers={customers} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} panelMode={panelMode} /> :
             activePage === 'customer-detail' ? <CustomerDetail customer={customers.find(c => c.id === selectedCustId)!} transactions={filteredTransactions} safes={safes} onBack={() => setActivePage('customers')} onPayment={processPayment} onDeleteTransaction={deleteTransaction} onEditTransaction={handleEditTransaction} /> :
             activePage === 'products' ? <Products products={products} onAddProduct={addProduct} onEditProduct={editProduct} onDeleteProduct={deleteProduct} /> :
-            (activePage === 'invoice-sales' || activePage === 'invoice-purchase') ? <InvoiceBuilder type={activePage === 'invoice-sales' ? 'sales' : 'purchase'} customers={filteredCustomers} products={products} onSave={processInvoice} transactions={filteredTransactions} /> :
+            (activePage === 'invoice-sales' || activePage === 'invoice-purchase') ? <InvoiceBuilder type={activePage === 'invoice-sales' ? 'sales' : 'purchase'} customers={filteredCustomers} products={products} onSave={processInvoice} transactions={filteredTransactions} panelMode={panelMode} onAddCustomer={addCustomer} /> :
             activePage === 'cash' ? <Cash safes={safes} transactions={filteredTransactions} onAddSafe={addSafe} onEditSafe={editSafe} onDeleteSafe={deleteSafe} /> :
             <DailyReport transactions={filteredTransactions} customers={customers} panelMode={panelMode} />
         }

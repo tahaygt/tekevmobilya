@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Transaction, Customer, PaymentMethod } from '../types';
-import { Printer, Download, Calendar, Edit3, Check, FileText, FileSpreadsheet, Filter, Box, TrendingUp, TrendingDown, PieChart, Users, Store } from 'lucide-react';
+import { Printer, Download, Calendar, Edit3, Check, FileText, FileSpreadsheet, Filter, Box, TrendingUp, TrendingDown, PieChart, Users, Store, User, Truck } from 'lucide-react';
 
 interface DailyReportProps {
   transactions: Transaction[];
@@ -40,7 +40,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       // Date Filter
       if (activeTab === 'daily') {
           filtered = filtered.filter(t => t.date === selectedDate);
-          // İSTEK: Alış faturaları üst kısımda detaylı çıkmasın (Sadece günlük raporda)
+          // İSTEK: Alış faturaları üst kısımda detaylı çıkmasın (Sadece günlük raporda, çünkü aşağıda özel tablosu olacak)
           filtered = filtered.filter(t => t.type !== 'purchase');
       } else {
           filtered = filtered.filter(t => t.date.startsWith(selectedMonth));
@@ -65,25 +65,13 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       .reduce((acc, t) => acc + (t.currency === 'TL' ? t.total : 0), 0);
   };
 
-  const stats = {
-      in: {
-          nakit: calculateMethodTotal(activeTransactions, 'in', 'nakit'),
-          havale: calculateMethodTotal(activeTransactions, 'in', 'havale'),
-          cek: calculateMethodTotal(activeTransactions, 'in', 'cek'),
-          kredi_karti: calculateMethodTotal(activeTransactions, 'in', 'kredi_karti'),
-          virman: calculateMethodTotal(activeTransactions, 'in', 'virman'),
-      },
-      out: {
-          nakit: calculateMethodTotal(activeTransactions, 'out', 'nakit'),
-          havale: calculateMethodTotal(activeTransactions, 'out', 'havale'),
-          cek: calculateMethodTotal(activeTransactions, 'out', 'cek'),
-          kredi_karti: calculateMethodTotal(activeTransactions, 'out', 'kredi_karti'),
-          virman: calculateMethodTotal(activeTransactions, 'out', 'virman'),
-      }
-  };
-
   // İSTEK: Sadece alış faturaları listelensin (Günlük Rapor - Alt Kısım)
-  const invoices = activeTab === 'daily' ? getDailyPurchaseInvoices(transactions.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting'))), selectedDate) : [];
+  // Bölüm filtresini burada da uyguluyoruz
+  const dailyPurchaseInvoices = useMemo(() => {
+      if (activeTab !== 'daily') return [];
+      const relevantTrans = transactions.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
+      return getDailyPurchaseInvoices(relevantTrans, selectedDate);
+  }, [transactions, activeTab, selectedDate, panelMode]);
 
   // Monthly Product Sales Count Logic (Overall)
   const productSalesSummary = useMemo(() => {
@@ -108,7 +96,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
   // New Feature: Customer based Product Sales (Monthly)
   const customerProductSummary = useMemo(() => {
-    if (activeTab !== 'monthly') return [];
+    if (activeTab !== 'monthly') return {};
 
     const sales = activeTransactions.filter(t => t.type === 'sales' && t.items && t.accId);
     const summary: Record<string, Record<string, number>> = {};
@@ -144,14 +132,95 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   const getTransactionDesc = (t: Transaction) => t.desc || getTrType(t.type, !!t.items);
   const getProductNames = (t: Transaction) => t.items && t.items.length > 0 ? t.items.map(i => i.name).join(', ') : '-';
 
-  // Placeholder functions for prints
-  const printSingleInvoice = (t: Transaction) => { /* Logic hidden for brevity */ };
-  const printProductSummary = () => { /* Logic hidden for brevity */ };
-  const printDailyInvoicesList = () => { /* Logic hidden for brevity */ };
-  const handleCustomerPrint = (cust: Customer) => { /* Logic hidden for brevity */ };
+  // --- PRINT FUNCTIONS ---
+  const printCustomerMonthlyReport = (custName: string, products: Record<string, number>) => {
+      const printWindow = window.open('', '', 'width=800,height=1000');
+      if (!printWindow) return;
+
+      const rows = Object.entries(products).map(([name, qty]) => `
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">${name}</td>
+            <td style="padding: 8px; text-align: right; font-weight: bold;">${qty} Adet</td>
+        </tr>
+      `).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>${custName} - Aylık Satış Raporu</title>
+            <style>
+                body { font-family: 'Inter', sans-serif; padding: 40px; }
+                h1 { font-size: 20px; margin-bottom: 5px; }
+                h2 { font-size: 14px; color: #666; font-weight: normal; margin-top: 0; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th { text-align: left; padding: 10px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
+            </style>
+        </head>
+        <body>
+            <h1>${custName}</h1>
+            <h2>${selectedMonth} Dönemi Ürün Satış Dağılımı</h2>
+            <table>
+                <thead>
+                    <tr><th>Ürün Adı</th><th style="text-align:right">Miktar</th></tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div style="margin-top: 30px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
+                Tekdemir Mobilya Yönetim Sistemi
+            </div>
+            <script>window.onload = () => { window.print(); }</script>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+  };
+
+  const printGeneralProductReport = () => {
+      const printWindow = window.open('', '', 'width=800,height=1000');
+      if (!printWindow) return;
+
+      const rows = productSalesSummary.map(([name, qty], index) => `
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px; width: 30px; color: #999;">${index + 1}</td>
+            <td style="padding: 8px;">${name}</td>
+            <td style="padding: 8px; text-align: right; font-weight: bold;">${qty} Adet</td>
+        </tr>
+      `).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Genel Ürün Satış Raporu</title>
+            <style>
+                body { font-family: 'Inter', sans-serif; padding: 40px; }
+                h1 { font-size: 20px; margin-bottom: 5px; }
+                h2 { font-size: 14px; color: #666; font-weight: normal; margin-top: 0; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th { text-align: left; padding: 10px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
+            </style>
+        </head>
+        <body>
+            <h1>GENEL SATIŞ RAPORU</h1>
+            <h2>${selectedMonth} Dönemi Toplam Ürün Çıkışları</h2>
+            <table>
+                <thead>
+                    <tr><th style="width:30px">#</th><th>Ürün Adı</th><th style="text-align:right">Toplam Miktar</th></tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <script>window.onload = () => { window.print(); }</script>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+  };
   
   const handleGlobalExport = () => {
-    // CSV Header: Added 'Bölüm' and 'Bağlı Fatura'
+    // CSV Header
     let csvContent = "\uFEFFTarih;Bölüm;Cari;Islem;Bağlı Fatura;Ürün;Aciklama;Tutar;Para Birimi\n";
     
     activeTransactions.forEach(t => {
@@ -167,7 +236,6 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
     const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    // Filename differentiates store vs accounting
     const filenamePrefix = panelMode === 'store' ? 'Magaza_Satis_Raporu' : 'Muhasebe_Finans_Raporu';
     link.setAttribute("download", `${filenamePrefix}_${activeTab}.csv`);
     document.body.appendChild(link);
@@ -264,7 +332,6 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                         <div className={`w-1.5 h-1.5 rounded-full ${panelMode === 'store' ? 'bg-orange-500' : 'bg-primary'}`}></div>
                                         <div className="font-bold text-[11px] uppercase text-slate-800 tracking-wide">{cust.name}</div>
                                     </div>
-                                    {/* Print Button */}
                                 </div>
                                 <div className="divide-y divide-slate-50">
                                     {custTrans.map((t) => (
@@ -285,13 +352,58 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
             )}
         </div>
 
-        {/* 2. Monthly Product Sales Summary (For Store Section mostly) */}
+        {/* 2. Monthly Customer Product Sales Summary (Cari Bazlı Ürün Dağılımı) */}
+        {activeTab === 'monthly' && Object.keys(customerProductSummary).length > 0 && (
+             <div className="mt-10 border border-slate-100 rounded-2xl overflow-hidden break-inside-avoid shadow-sm mb-10">
+                <div className="bg-slate-50 text-slate-700 font-bold py-3 px-6 uppercase text-xs flex items-center justify-between border-b border-slate-100">
+                    <div className="flex items-center">
+                        <User size={14} className="mr-2 text-blue-500"/> Cari Bazlı Ürün Satış Dağılımı
+                    </div>
+                </div>
+                
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white">
+                    {Object.entries(customerProductSummary).map(([custName, products], index) => (
+                        <div key={index} className="border border-slate-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                             <div className="bg-slate-50/50 px-3 py-2 font-bold text-slate-800 border-b border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></div>
+                                    <span className="truncate max-w-[150px]">{custName}</span>
+                                </div>
+                                <button 
+                                    onClick={() => printCustomerMonthlyReport(custName, products)}
+                                    className="text-slate-400 hover:text-blue-600 p-1 hover:bg-blue-50 rounded transition-colors no-print"
+                                    title="Bu cari raporunu yazdır"
+                                >
+                                    <Printer size={12} />
+                                </button>
+                             </div>
+                             <div className="divide-y divide-slate-50 max-h-48 overflow-y-auto custom-scrollbar">
+                                {Object.entries(products).map(([prodName, qty], i) => (
+                                    <div key={i} className="flex justify-between px-3 py-1.5 text-[10px] hover:bg-slate-50">
+                                        <span className="text-slate-600">{prodName}</span>
+                                        <span className="font-bold font-mono text-slate-900 bg-slate-100 px-1.5 rounded">{qty} Adet</span>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    ))}
+                </div>
+             </div>
+        )}
+
+        {/* 3. Monthly Product Sales Summary (Overall) */}
         {activeTab === 'monthly' && productSalesSummary.length > 0 && (
              <div className="mt-10 border border-slate-100 rounded-2xl overflow-hidden break-inside-avoid shadow-sm">
                 <div className="bg-slate-50 text-slate-700 font-bold py-3 px-6 uppercase text-xs flex items-center justify-between border-b border-slate-100">
                     <div className="flex items-center">
-                        <Store size={14} className="mr-2 text-orange-500"/> Aylık Mağaza Satış Raporu (Adet)
+                        <Store size={14} className="mr-2 text-orange-500"/> Genel Ürün Satış Raporu (Adet)
                     </div>
+                    <button 
+                        onClick={printGeneralProductReport}
+                        className="flex items-center gap-1 text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md hover:bg-slate-100 hover:text-slate-800 transition-colors no-print"
+                    >
+                        <Printer size={12} /> Listeyi Yazdır
+                    </button>
                 </div>
                 
                 <div className="divide-y divide-slate-50 bg-white">
@@ -304,6 +416,42 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                             <div className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{count}</div>
                         </div>
                     ))}
+                </div>
+             </div>
+        )}
+
+        {/* 4. Daily Purchase Invoices (Alış Faturaları) - Alt Kısım */}
+        {activeTab === 'daily' && dailyPurchaseInvoices.length > 0 && (
+             <div className="mt-10 border border-slate-100 rounded-2xl overflow-hidden break-inside-avoid shadow-sm">
+                <div className="bg-slate-50 text-slate-700 font-bold py-3 px-6 uppercase text-xs flex items-center justify-between border-b border-slate-100">
+                    <div className="flex items-center">
+                        <Truck size={14} className="mr-2 text-purple-500"/> Günlük Alış Faturaları (Giderler)
+                    </div>
+                </div>
+                <div className="bg-white">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50/50 text-slate-400 text-[9px] uppercase font-bold border-b border-slate-50">
+                            <tr>
+                                <th className="px-6 py-2">Tedarikçi / Cari</th>
+                                <th className="px-6 py-2">Ürünler</th>
+                                <th className="px-6 py-2 text-right">Tutar</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {dailyPurchaseInvoices.map((t) => (
+                                <tr key={t.id} className="hover:bg-slate-50/50">
+                                    <td className="px-6 py-3 font-bold text-slate-700">
+                                        {t.accName || '-'}
+                                        <div className="text-[9px] text-slate-400 font-normal">#{t.id}</div>
+                                    </td>
+                                    <td className="px-6 py-3 text-slate-600">{getProductNames(t)}</td>
+                                    <td className="px-6 py-3 text-right font-mono font-bold text-red-600">
+                                        {formatMoney(t.total, t.currency)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
              </div>
         )}
