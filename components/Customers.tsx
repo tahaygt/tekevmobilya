@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Customer } from '../types';
-import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck, Store } from 'lucide-react';
+import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck, Store, Smartphone } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomersProps {
@@ -30,6 +30,7 @@ export const Customers: React.FC<CustomersProps> = ({
       type: 'musteri', 
       section: panelMode, // Create in current section
       phone: '', 
+      phone2: '', // Telefon 2 varsayılan boş
       address: '', 
       balances: { TL: 0, USD: 0, EUR: 0 } 
   };
@@ -143,12 +144,23 @@ export const Customers: React.FC<CustomersProps> = ({
             </div>
 
             <div className="space-y-1">
-                 <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Telefon</label>
+                 <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Telefon 1</label>
                  <input
                     type="text"
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
                     value={formData.phone}
                     onChange={e => setFormData({...formData, phone: e.target.value})}
+                    placeholder="05..."
+                 />
+            </div>
+
+            <div className="space-y-1">
+                 <label className="text-xs font-semibold text-slate-500 uppercase ml-1">Telefon 2</label>
+                 <input
+                    type="text"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
+                    value={formData.phone2 || ''}
+                    onChange={e => setFormData({...formData, phone2: e.target.value})}
                     placeholder="05..."
                  />
             </div>
@@ -164,19 +176,19 @@ export const Customers: React.FC<CustomersProps> = ({
                  />
             </div>
 
-            <div className="flex items-end">
-                <div className="flex gap-2 w-full">
-                    <button 
-                    onClick={handleSubmit}
-                    className={`flex-1 text-white px-4 py-2.5 rounded-lg transition-colors font-bold shadow-md ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}
-                    >
-                    {isEditing ? 'Değişiklikleri Kaydet' : 'Kaydet'}
-                    </button>
+            <div className="flex items-end lg:col-span-4 justify-end mt-4">
+                <div className="flex gap-2 w-full md:w-auto">
                     <button 
                     onClick={() => { setShowForm(false); setIsEditing(false); setFormData(initialForm); }}
-                    className="bg-gray-100 text-gray-600 px-4 py-2.5 rounded-lg font-medium hover:bg-gray-200"
+                    className="bg-gray-100 text-gray-600 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-200"
                     >
                     İptal
+                    </button>
+                    <button 
+                    onClick={handleSubmit}
+                    className={`text-white px-8 py-2.5 rounded-lg transition-colors font-bold shadow-md ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-900 hover:bg-slate-800'}`}
+                    >
+                    {isEditing ? 'Değişiklikleri Kaydet' : 'Kaydet'}
                     </button>
                 </div>
             </div>
@@ -191,7 +203,7 @@ export const Customers: React.FC<CustomersProps> = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Cari Bilgisi</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">İletişim</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/3">İletişim</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipi</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Güncel Bakiye</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-40">İşlemler</th>
@@ -202,9 +214,9 @@ export const Customers: React.FC<CustomersProps> = ({
                   const hasBalance = c.balances.TL !== 0 || c.balances.USD !== 0 || c.balances.EUR !== 0;
                   return (
                 <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 valign-top">
                     <div className="flex items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white shadow-sm
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white shadow-sm flex-shrink-0
                             ${panelMode === 'store' ? 'bg-orange-500' : c.type === 'musteri' ? 'bg-blue-500' : 'bg-purple-500'}
                         `}>
                             {panelMode === 'store' ? <Store size={18}/> : <User size={18} />}
@@ -215,11 +227,32 @@ export const Customers: React.FC<CustomersProps> = ({
                         </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {c.phone && <div className="flex items-center gap-1.5 mb-1"><Phone size={14} className="text-slate-400"/> {c.phone}</div>}
-                    {c.address && <div className="flex items-center gap-1.5 text-xs text-slate-500 max-w-[200px] truncate" title={c.address}><MapPin size={14} className="text-slate-400"/> {c.address}</div>}
+                  <td className="px-6 py-4 text-sm text-slate-600 valign-top">
+                    <div className="flex flex-col gap-1.5">
+                        {c.phone && (
+                            <div className="flex items-center gap-2 text-slate-700 font-medium">
+                                <Phone size={13} className="text-slate-400"/> 
+                                {c.phone}
+                                <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Tel 1</span>
+                            </div>
+                        )}
+                        {c.phone2 && (
+                            <div className="flex items-center gap-2 text-slate-600">
+                                <Smartphone size={13} className="text-slate-400"/> 
+                                {c.phone2}
+                                <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Tel 2</span>
+                            </div>
+                        )}
+                        {c.address && (
+                            <div className="flex items-start gap-2 text-xs text-slate-500 mt-1" title={c.address}>
+                                <MapPin size={13} className="text-slate-400 mt-0.5 shrink-0"/> 
+                                <span className="line-clamp-2 leading-relaxed">{c.address}</span>
+                            </div>
+                        )}
+                        {!c.phone && !c.phone2 && !c.address && <span className="text-slate-300 text-xs italic">- İletişim bilgisi yok -</span>}
+                    </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 valign-top">
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border 
                       ${c.type === 'musteri' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
                         c.type === 'tedarikci' ? 'bg-orange-50 text-orange-700 border-orange-100' : 
@@ -227,7 +260,7 @@ export const Customers: React.FC<CustomersProps> = ({
                       {c.type === 'both' ? 'Müşteri & Tedarikçi' : c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right valign-top">
                     <div className="flex flex-col items-end gap-1.5">
                         {hasBalance ? (
                             <>
@@ -240,7 +273,7 @@ export const Customers: React.FC<CustomersProps> = ({
                         )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-6 py-4 text-center valign-top">
                     <div className="flex items-center justify-center gap-2 opacity-100">
                         <button 
                         onClick={() => onSelectCustomer(c.id)}
