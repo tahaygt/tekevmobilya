@@ -378,7 +378,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                      <div className="md:col-span-5 relative">
-                        <input type="text" className="w-full border border-orange-200 rounded-lg px-3 py-2 outline-none bg-white text-sm" placeholder="Teslimat Adresi (Farklıysa)" value={retailAddress} onChange={e => setRetailAddress(e.target.value)} />
+                        <input type="text" className="w-full border border-orange-200 rounded-lg px-3 py-2 outline-none bg-white text-sm" placeholder="Teslimat Adresi" value={retailAddress} onChange={e => setRetailAddress(e.target.value)} />
                         <MapPin size={14} className="absolute right-3 top-2.5 text-orange-300" />
                      </div>
                      <div className="md:col-span-3 relative">

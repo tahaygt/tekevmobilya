@@ -370,7 +370,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                     <span className="truncate max-w-[150px]">{custName}</span>
                                 </div>
                                 <button 
-                                    onClick={() => printCustomerMonthlyReport(custName, products)}
+                                    onClick={() => printCustomerMonthlyReport(custName, products as Record<string, number>)}
                                     className="text-slate-400 hover:text-blue-600 p-1 hover:bg-blue-50 rounded transition-colors no-print"
                                     title="Bu cari raporunu yazdır"
                                 >

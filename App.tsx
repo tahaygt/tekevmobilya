@@ -9,6 +9,7 @@ import { Products } from './components/Products';
 import { InvoiceBuilder } from './components/InvoiceBuilder';
 import { Cash } from './components/Cash';
 import { DailyReport } from './components/DailyReport';
+import { SuccessModal } from './components/SuccessModal';
 import { Customer, Product, Safe, Transaction, TransactionItem, Page, PaymentMethod } from './types';
 import { LogOut, AlertCircle, Lock, Mail, RefreshCw, Calculator, Store, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { api } from './api';
@@ -179,6 +180,7 @@ const App: React.FC = () => {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // App Data State
   const [activePage, setActivePage] = useState<Page>('customers');
@@ -397,8 +399,8 @@ const App: React.FC = () => {
     await api.update('customers', updatedCustomer, mode);
 
     setSyncing(false);
-    alert('Fatura başarıyla kaydedildi.');
     setActivePage('customers');
+    setSuccessMessage('Fatura başarıyla kaydedildi.');
   };
 
   const processPayment = async (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string, date: string, linkedTransactionId?: number) => {
@@ -446,6 +448,7 @@ const App: React.FC = () => {
      await api.update('safes', updatedSafe, mode);
 
      setSyncing(false);
+     setSuccessMessage('Ödeme işlemi başarıyla kaydedildi.');
   };
 
   const deleteTransaction = async (id: number) => {
@@ -550,6 +553,12 @@ const App: React.FC = () => {
 
   return (
     <div className="relative">
+        <SuccessModal 
+            isOpen={!!successMessage} 
+            message={successMessage || ''} 
+            onClose={() => setSuccessMessage(null)} 
+        />
+        
         {syncing && (
             <div className="fixed top-6 right-6 z-[60] bg-white/90 backdrop-blur shadow-2xl rounded-full px-4 py-2 flex items-center gap-3 text-xs font-bold text-slate-700 animate-in fade-in slide-in-from-top-4 border border-slate-200/50">
                 <RefreshCw size={14} className="animate-spin text-primary" /> 
