@@ -26,9 +26,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   // Quick Customer Create State
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [newCustName, setNewCustName] = useState('');
-  const [newCustPhone, setNewCustPhone] = useState('');
-  const [newCustAddress, setNewCustAddress] = useState('');
-
+  const [newCustPhone1, setNewCustPhone1] = useState(''); // Changed from newCustPhone
+  const [newCustPhone2, setNewCustPhone2] = useState(''); // Added Phone 2
+  
   // Retail / Delivery Details State (For Logistics Only)
   const [deliveryDate, setDeliveryDate] = useState('');
   const [retailAddress, setRetailAddress] = useState('');
@@ -71,8 +71,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     try {
         const newCust = await onAddCustomer({
             name: newCustName,
-            phone: newCustPhone,
-            address: newCustAddress,
+            phone: newCustPhone1,
+            phone2: newCustPhone2, // Added Phone 2
+            address: '', // Removed address from quick add
             type: 'musteri',
             section: panelMode || 'accounting'
         });
@@ -80,10 +81,10 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         setSelectedRetailCust(newCust.id);
         setShowQuickAdd(false);
         setNewCustName('');
-        setNewCustPhone('');
-        setNewCustAddress('');
-        // Auto fill address details
-        setRetailAddress(newCust.address || '');
+        setNewCustPhone1('');
+        setNewCustPhone2('');
+        // Address is empty for new quick customers
+        setRetailAddress('');
     } catch (e) {
         alert("Müşteri oluşturulurken hata oluştu.");
     }
@@ -178,6 +179,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         branchId: type === 'sales' ? Number(selectedBranch) : undefined,
         retailName: retailCustObj?.name || '',
         retailPhone1: retailCustObj?.phone || '',
+        retailPhone2: retailCustObj?.phone2 || '', // Added Phone 2 Mapping
         retailAddress: retailAddress || retailCustObj?.address || '', // Prefer typed address, fallback to stored
         deliveryDate
     };
@@ -214,7 +216,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 <div class="bg-slate-50 p-6 rounded-lg">
                     <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Sayın (Müşteri)</div>
                     <h2 class="text-xl font-bold text-slate-800">${cust.name}</h2>
-                    <div class="text-slate-600 mt-2 text-sm">${cust.address || ''}<br>${cust.phone || ''}</div>
+                    <div class="text-slate-600 mt-2 text-sm">${cust.address || ''}<br>${cust.phone || ''} ${cust.phone2 ? '/ ' + cust.phone2 : ''}</div>
                 </div>
                 ${(t.retailAddress || t.deliveryDate) ? `
                 <div class="bg-orange-50 p-6 rounded-lg border border-orange-100">
@@ -320,8 +322,8 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                             <h4 className="text-green-800 font-bold text-xs uppercase mb-3 flex items-center"><Plus size={12} className="mr-1"/> Hızlı Müşteri Oluştur</h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <input type="text" placeholder="Ad Soyad" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustName} onChange={e => setNewCustName(e.target.value)} autoFocus />
-                                <input type="text" placeholder="Telefon" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustPhone} onChange={e => setNewCustPhone(e.target.value)} />
-                                <input type="text" placeholder="Adres" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustAddress} onChange={e => setNewCustAddress(e.target.value)} />
+                                <input type="text" placeholder="Telefon 1" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustPhone1} onChange={e => setNewCustPhone1(e.target.value)} />
+                                <input type="text" placeholder="Telefon 2" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustPhone2} onChange={e => setNewCustPhone2(e.target.value)} />
                             </div>
                             <button onClick={handleQuickAddCustomer} className="mt-3 w-full bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700 text-sm">
                                 Müşteriyi Kaydet ve Seç

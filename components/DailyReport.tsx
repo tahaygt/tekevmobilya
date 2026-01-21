@@ -95,7 +95,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   }, [activeTransactions, activeTab]);
 
   // New Feature: Customer based Product Sales (Monthly)
-  const customerProductSummary = useMemo(() => {
+  const customerProductSummary = useMemo((): Record<string, Record<string, number>> => {
     if (activeTab !== 'monthly') return {};
 
     const sales = activeTransactions.filter(t => t.type === 'sales' && t.items && t.accId);

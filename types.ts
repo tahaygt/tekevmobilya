@@ -5,6 +5,7 @@ export interface Customer {
   type: 'musteri' | 'tedarikci' | 'both';
   section: 'accounting' | 'store'; // Bölüm ayrımı
   phone?: string;
+  phone2?: string; // Yeni: İkinci Telefon
   address?: string;
   balances: {
     TL: number;
