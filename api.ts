@@ -5,7 +5,7 @@
 const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbx7SEV7eexwPGyacXaN557aYxXUXOdqM1GD-vvYXW_AqOgzCHkieIZWo-8oJ6FVqwyzIg/exec";
 
 // 2. MAĞAZA SCRİPTİ (Store)
-const STORE_API_URL = "https://script.google.com/macros/s/AKfycbwbty34mv8ZgOargkHK7T546tJ7REL2W8frxFlVVD-WxaTos_-FV_HffKtVlaZymxRi3Q/exec";
+const STORE_API_URL = "https://script.google.com/macros/s/AKfycbz5soHbBcAIfiiCxuntdbbO8QuCqVVB-8rIzp29KJgIXP9mt0Y8CkhmU8I09ZAnb1n1bQ/exec";
 
 // Mod'a göre doğru URL'i seçen fonksiyon
 const getApiUrl = (mode: 'accounting' | 'store') => {
