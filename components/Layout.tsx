@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Menu, X, Users, FileText, Truck, Box, Wallet, PieChart, Store, LogOut, ChevronRight } from 'lucide-react';
+import { Menu, X, Users, FileText, Truck, Box, Wallet, PieChart, Store, LogOut, ChevronRight, LayoutDashboard, Home } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,51 +20,62 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
     { id: 'invoice-sales', label: 'Satış Faturası', icon: FileText },
     { id: 'invoice-purchase', label: 'Alış Faturası', icon: Truck },
     { id: 'cash', label: 'Kasa İşlemleri', icon: Wallet },
-    { id: 'report', label: 'Raporlar', icon: PieChart },
+    { id: 'report', label: 'Finansal Raporlar', icon: PieChart },
   ] : [
-    { id: 'invoice-sales', label: 'Perakende Satış', icon: Store },
+    { id: 'invoice-sales', label: 'Perakende Satış', icon: Store }, // Icon changed to Store/Home context
     { id: 'customers', label: 'Şubeler & Cariler', icon: Users },
     { id: 'products', label: 'Ürün & Stok', icon: Box },
     { id: 'report', label: 'Satış Raporları', icon: PieChart },
   ];
 
+  const isStore = panelMode === 'store';
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f8fafc] print:h-auto print:overflow-visible font-sans">
+    <div className="flex h-screen overflow-hidden bg-slate-50 print:h-auto print:overflow-visible font-sans selection:bg-primary/20">
       {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      {/* Modern Sidebar */}
+      {/* Sidebar */}
       <aside 
         className={`
-          fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-out shadow-2xl
+          fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-out shadow-2xl
           md:relative md:translate-x-0 flex flex-col no-print
+          ${isStore 
+             ? 'bg-[#0B1221] text-white' // Darker Navy/Slate for Store
+             : 'bg-slate-900 text-white'}
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         {/* Brand Area */}
-        <div className="h-28 flex flex-col items-center justify-center relative border-b border-slate-800/50 bg-gradient-to-b from-slate-900 to-slate-900">
-             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-blue-400 to-purple-500"></div>
-             <h1 className="text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">
-                TEKDEMİR
-             </h1>
-             <div className={`mt-2 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase border border-white/10 shadow-inner
-                ${panelMode === 'store' ? 'bg-orange-500/10 text-orange-400' : 'bg-primary/10 text-primary'}
-             `}>
-                {panelMode === 'store' ? 'MAĞAZA YÖNETİMİ' : 'MUHASEBE & FİNANS'}
+        <div className="h-32 flex flex-col items-center justify-center relative shrink-0">
+             <div className="flex flex-col items-center gap-3">
+                 <h1 className="text-3xl font-black tracking-[0.1em] text-white/90">
+                    TEKDEMİR
+                 </h1>
+                 <div className={`px-4 py-1.5 rounded-full text-[11px] font-bold tracking-[0.15em] uppercase border shadow-sm
+                    ${isStore 
+                        ? 'bg-[#182030] text-orange-500 border-white/5' 
+                        : 'bg-slate-800 text-sky-400 border-slate-700'}
+                 `}>
+                    {isStore ? 'MAĞAZA YÖNETİMİ' : 'MUHASEBE & FİNANS'}
+                 </div>
              </div>
              
-             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden absolute right-4 top-8 text-slate-400 hover:text-white">
+             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden absolute right-4 top-8 text-white/70 hover:text-white transition-colors">
                <X size={24} />
              </button>
         </div>
 
+        {/* Separator Line */}
+        <div className="h-px bg-white/5 mx-6 mb-6"></div>
+
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-4 space-y-2 custom-scrollbar">
           {navItems.map((item) => {
             const isActive = activePage === item.id || (activePage === 'customer-detail' && item.id === 'customers');
             return (
@@ -75,38 +86,40 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
                   setIsSidebarOpen(false);
                 }}
                 className={`
-                  w-full flex items-center px-4 py-3.5 text-sm font-medium transition-all duration-200 rounded-xl group relative overflow-hidden
+                  w-full flex items-center justify-between px-5 py-4 text-sm font-bold transition-all duration-200 rounded-2xl group relative overflow-hidden
                   ${isActive 
-                    ? (panelMode === 'store' ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white shadow-lg shadow-orange-900/20' : 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-blue-900/20')
-                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}
+                    ? (isStore 
+                        ? 'bg-[#ea580c] text-white shadow-lg shadow-orange-900/20' // Pure Orange Background
+                        : 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-lg')
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'}
                 `}
               >
-                <item.icon size={20} className={`mr-3 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-                <span className="relative z-10 flex-1 text-left">{item.label}</span>
-                {isActive && <ChevronRight size={16} className="text-white/70" />}
+                <div className="flex items-center relative z-10">
+                    <item.icon size={20} className={`mr-4 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-white transition-colors'}`} />
+                    <span className="tracking-wide">{item.label}</span>
+                </div>
+                {isActive && <ChevronRight size={16} className="opacity-80 relative z-10"/>}
               </button>
             );
           })}
         </nav>
         
         {/* Bottom Actions */}
-        <div className="p-4 bg-slate-900 border-t border-slate-800/50 space-y-3">
+        <div className="p-6 border-t border-white/5 space-y-4 shrink-0 bg-[#080d19]/50">
             <button 
                 onClick={onSwitchPanel}
-                className="w-full py-3 px-4 rounded-xl bg-slate-800/50 hover:bg-slate-800 text-xs text-slate-400 hover:text-white transition-all border border-slate-700/50 hover:border-slate-600 flex items-center justify-center font-bold tracking-wide group"
+                className="w-full py-3.5 px-4 rounded-xl bg-[#182030] hover:bg-[#232d42] border border-white/5 text-xs text-slate-300 hover:text-white transition-all flex items-center justify-center font-bold tracking-widest group"
             >
-                <Store size={14} className="mr-2 group-hover:text-primary transition-colors" /> PANELE DÖN
+                <LayoutDashboard size={16} className={`mr-2 text-slate-500 group-hover:text-white transition-colors`} /> PANELE DÖN
             </button>
-            <div className="text-[10px] text-slate-600 text-center font-medium pt-2">
-               v15.0 &bull; Tekdemir Yazılım
-            </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden print:h-auto print:overflow-visible bg-[#f8fafc]">
-        {/* Header */}
-        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex items-center justify-between px-6 sm:px-8 no-print z-10 sticky top-0">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden print:h-auto print:overflow-visible relative bg-[#f8fafc]">
+        
+        {/* Header - Mağaza Modunda Sade Beyaz */}
+        <header className="h-20 bg-white border-b border-slate-200/60 flex items-center justify-between px-8 no-print z-10 sticky top-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -114,43 +127,36 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
             >
               <Menu size={24} />
             </button>
-            <div>
-                <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center">
-                    {activePage === 'customer-detail' ? 'Hesap Detayı' : navItems.find(n => n.id === activePage)?.label || 'Panel'}
-                </h2>
-            </div>
+            <h2 className="text-xl font-bold text-slate-800 tracking-tight">
+                {activePage === 'customer-detail' ? 'Hesap Detayı' : navItems.find(n => n.id === activePage)?.label || 'Panel'}
+            </h2>
           </div>
           
           <div className="flex items-center gap-6">
              <div className="text-right hidden sm:block">
-                 <div className="text-sm font-bold text-slate-700">
+                 <div className="text-xs font-bold text-slate-900">
                     {new Date().toLocaleDateString('tr-TR', { weekday: 'long' })}
                  </div>
-                 <div className="text-xs text-slate-400 font-medium">
+                 <div className="text-[11px] text-slate-400 font-medium">
                     {new Date().toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}
                  </div>
              </div>
              
-             <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
+             <div className="h-8 w-px bg-slate-100 hidden sm:block"></div>
 
              <button 
                 onClick={onLogout}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold transition-all shadow-sm hover:shadow-md group
-                   ${panelMode === 'store' 
-                     ? 'bg-orange-50 text-orange-600 border-orange-100 hover:bg-red-50 hover:text-red-600 hover:border-red-100' 
-                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100'}
-                `}
-                title="Güvenli Çıkış"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all bg-white border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-100 hover:bg-red-50"
              >
-                <LogOut size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                <LogOut size={14} />
                 <span className="hidden sm:inline">Çıkış</span>
              </button>
           </div>
         </header>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-auto p-4 sm:p-8 print:p-0 print:overflow-visible custom-scrollbar">
-          <div className="max-w-7xl mx-auto w-full animate-[fadeIn_0.4s_cubic-bezier(0.16,1,0.3,1)] print:max-w-none pb-20">
+        <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible custom-scrollbar relative z-0">
+          <div className="max-w-7xl mx-auto w-full animate-[fadeIn_0.5s_cubic-bezier(0.16,1,0.3,1)] print:max-w-none pb-24">
             {children}
           </div>
         </div>

@@ -4,6 +4,7 @@ export interface Customer {
   name: string;
   type: 'musteri' | 'tedarikci' | 'both';
   section: 'accounting' | 'store'; // Bölüm ayrımı
+  parentId?: number; // YENİ: Hangi ana cariye/şubeye bağlı olduğu
   phone?: string;
   phone2?: string; // Yeni: İkinci Telefon
   address?: string;
@@ -64,6 +65,7 @@ export interface Transaction {
   
   // Şube/Satış Yeri Bilgisi
   branchId?: number; // SATIŞI YAPAN ŞUBE
+  salesRep?: string; // SATIŞ TEMSİLCİSİ (YENİ)
   
   // Teslimat Detayları
   retailName?: string; // Fatura üzerindeki görünen isim (Opsiyonel)

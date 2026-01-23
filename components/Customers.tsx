@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Customer } from '../types';
-import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck, Store, Smartphone } from 'lucide-react';
+import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck, Store, Smartphone, ChevronDown, ChevronRight, CornerDownRight } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomersProps {
@@ -28,9 +28,9 @@ export const Customers: React.FC<CustomersProps> = ({
       id: 0, 
       name: '', 
       type: 'musteri', 
-      section: panelMode, // Create in current section
+      section: panelMode, 
       phone: '', 
-      phone2: '', // Telefon 2 varsayılan boş
+      phone2: '', 
       address: '', 
       balances: { TL: 0, USD: 0, EUR: 0 } 
   };
@@ -45,7 +45,6 @@ export const Customers: React.FC<CustomersProps> = ({
     } else {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, balances, ...rest } = formData;
-      // Ensure section is set to current panel mode
       onAddCustomer({ ...rest, section: panelMode });
     }
     setFormData(initialForm);
@@ -66,10 +65,20 @@ export const Customers: React.FC<CustomersProps> = ({
     }
   };
 
-  // Filter customers by SECTION (Store vs Accounting)
-  const filtered = customers
-    .filter(c => (c.section === panelMode || (!c.section && panelMode === 'accounting'))) // Backward compat for old records -> accounting
-    .filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+  // Filter customers by SECTION
+  const relevantCustomers = customers.filter(c => (c.section === panelMode || (!c.section && panelMode === 'accounting')));
+  
+  // MAĞAZA MODU DEĞİŞİKLİĞİ: Sadece Ana Carileri (Root) göster. Alt cariler detayda gösterilecek.
+  // Muhasebe modunda hepsini gösterebiliriz veya orada da hiyerarşi varsa sadece rootları.
+  // Şimdilik sadece mağaza modu için "sadece root" filtresi uyguluyoruz.
+  const displayCustomers = panelMode === 'store' 
+      ? relevantCustomers.filter(c => !c.parentId) 
+      : relevantCustomers;
+
+  // Filtering with Search
+  const displayList = searchTerm.length > 0
+      ? displayCustomers.filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()))
+      : displayCustomers;
 
   const formatBalance = (amount: number, curr: string) => {
       if(amount === 0) return null;
@@ -77,6 +86,97 @@ export const Customers: React.FC<CustomersProps> = ({
         <div key={curr} className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${amount > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
             {amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {curr}
         </div>
+      );
+  };
+
+  const renderCustomerRow = (c: Customer) => {
+      const hasBalance = c.balances.TL !== 0 || c.balances.USD !== 0 || c.balances.EUR !== 0;
+      
+      // Calculate Sub-Customer Count (Store Mode Only)
+      const subCount = panelMode === 'store' ? relevantCustomers.filter(sc => sc.parentId === c.id).length : 0;
+
+      return (
+        <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
+          <td className="px-6 py-4 valign-top">
+            <div className="flex items-center">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white shadow-sm flex-shrink-0
+                    ${panelMode === 'store' ? 'bg-orange-500' : c.type === 'musteri' ? 'bg-blue-500' : 'bg-purple-500'}
+                `}>
+                    {panelMode === 'store' ? <Store size={18}/> : <User size={18} />}
+                </div>
+                <div>
+                    <div className="font-bold text-slate-800 flex items-center gap-2">
+                        {c.name}
+                        {subCount > 0 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 rounded-full border border-slate-200">{subCount} Alt Cari</span>}
+                    </div>
+                    <div className="text-xs text-slate-400 font-medium">#{c.id}</div>
+                </div>
+            </div>
+          </td>
+          <td className="px-6 py-4 text-sm text-slate-600 valign-top">
+            <div className="flex flex-col gap-1.5">
+                {c.phone && (
+                    <div className="flex items-center gap-2 text-slate-700 font-medium">
+                        <Phone size={13} className="text-slate-400"/> 
+                        {c.phone}
+                    </div>
+                )}
+                {c.phone2 && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                        <Smartphone size={13} className="text-slate-400"/> 
+                        {c.phone2}
+                    </div>
+                )}
+                {!c.phone && !c.phone2 && <span className="text-slate-300 text-xs italic">-</span>}
+            </div>
+          </td>
+          <td className="px-6 py-4 valign-top">
+            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border 
+              ${c.type === 'musteri' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
+                c.type === 'tedarikci' ? 'bg-orange-50 text-orange-700 border-orange-100' : 
+                'bg-purple-50 text-purple-700 border-purple-100'}`}>
+              {c.type === 'both' ? 'Müşteri & Tedarikçi' : c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}
+            </span>
+          </td>
+          <td className="px-6 py-4 text-right valign-top">
+            <div className="flex flex-col items-end gap-1.5">
+                {hasBalance ? (
+                    <>
+                        {formatBalance(c.balances.TL, 'TL')}
+                        {formatBalance(c.balances.USD, 'USD')}
+                        {formatBalance(c.balances.EUR, 'EUR')}
+                    </>
+                ) : (
+                    <span className="text-slate-400 text-xs font-medium">Bakiye Yok</span>
+                )}
+            </div>
+          </td>
+          <td className="px-6 py-4 text-center valign-top">
+            <div className="flex items-center justify-center gap-2 opacity-100">
+                <button 
+                onClick={() => onSelectCustomer(c.id)}
+                className="text-white bg-slate-800 hover:bg-primary p-2 rounded-lg transition-all shadow-sm"
+                title="Hesap Detayı"
+                >
+                <ArrowRight size={16} />
+                </button>
+                <button 
+                onClick={() => handleEditClick(c)}
+                className="text-slate-500 hover:text-orange-600 hover:bg-orange-50 p-2 rounded-lg transition-colors border border-slate-200 bg-white"
+                title="Düzenle"
+                >
+                <Edit2 size={16} />
+                </button>
+                <button 
+                onClick={() => setDeleteId(c.id)}
+                className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                title="Sil"
+                >
+                <Trash2 size={16} />
+                </button>
+            </div>
+          </td>
+        </tr>
       );
   };
 
@@ -96,7 +196,7 @@ export const Customers: React.FC<CustomersProps> = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
                 type="text"
-                placeholder={panelMode === 'store' ? "Şube veya cari adı ara..." : "Cari adı, telefon veya adres ara..."}
+                placeholder={panelMode === 'store' ? "Şube Ara..." : "Cari adı, telefon veya adres ara..."}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -106,7 +206,7 @@ export const Customers: React.FC<CustomersProps> = ({
             onClick={() => { setShowForm(!showForm); setIsEditing(false); setFormData({...initialForm, section: panelMode}); }}
             className={`px-6 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center ${showForm && !isEditing ? 'bg-slate-500' : panelMode === 'store' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-primary hover:bg-sky-600'}`}
         >
-            {showForm && !isEditing ? 'Vazgeç' : <><Plus className="mr-2" size={20} /> {panelMode === 'store' ? 'Yeni Şube/Cari Ekle' : 'Yeni Cari Ekle'}</>}
+            {showForm && !isEditing ? 'Vazgeç' : <><Plus className="mr-2" size={20} /> {panelMode === 'store' ? 'Yeni Şube Ekle' : 'Yeni Cari Ekle'}</>}
         </button>
       </div>
 
@@ -115,7 +215,7 @@ export const Customers: React.FC<CustomersProps> = ({
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 animate-[fadeIn_0.2s_ease-out]">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center pb-4 border-b border-slate-100">
             {isEditing ? <Edit2 className="mr-2 text-orange-500" size={20} /> : <Plus className="mr-2 text-primary" size={20} />}
-            {isEditing ? 'Cari Bilgilerini Düzenle' : (panelMode === 'store' ? 'Yeni Şube/Cari Tanımla' : 'Yeni Cari Kartı Oluştur')}
+            {isEditing ? 'Cari Bilgilerini Düzenle' : (panelMode === 'store' ? 'Yeni Şube Tanımla' : 'Yeni Cari Kartı Oluştur')}
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -126,7 +226,7 @@ export const Customers: React.FC<CustomersProps> = ({
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
-                placeholder={panelMode === 'store' ? "Örn: Şube 1, Perakende Müşteri..." : "Örn: Tekdemir Mobilya A.Ş."}
+                placeholder={panelMode === 'store' ? "Örn: Şube 1, Merkez Şube..." : "Örn: Tekdemir Mobilya A.Ş."}
                 />
             </div>
             
@@ -210,103 +310,14 @@ export const Customers: React.FC<CustomersProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(c => {
-                  const hasBalance = c.balances.TL !== 0 || c.balances.USD !== 0 || c.balances.EUR !== 0;
-                  return (
-                <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-6 py-4 valign-top">
-                    <div className="flex items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white shadow-sm flex-shrink-0
-                            ${panelMode === 'store' ? 'bg-orange-500' : c.type === 'musteri' ? 'bg-blue-500' : 'bg-purple-500'}
-                        `}>
-                            {panelMode === 'store' ? <Store size={18}/> : <User size={18} />}
-                        </div>
-                        <div>
-                            <div className="font-bold text-slate-800">{c.name}</div>
-                            <div className="text-xs text-slate-400 font-medium">#{c.id}</div>
-                        </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 valign-top">
-                    <div className="flex flex-col gap-1.5">
-                        {c.phone && (
-                            <div className="flex items-center gap-2 text-slate-700 font-medium">
-                                <Phone size={13} className="text-slate-400"/> 
-                                {c.phone}
-                                <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Tel 1</span>
-                            </div>
-                        )}
-                        {c.phone2 && (
-                            <div className="flex items-center gap-2 text-slate-600">
-                                <Smartphone size={13} className="text-slate-400"/> 
-                                {c.phone2}
-                                <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Tel 2</span>
-                            </div>
-                        )}
-                        {c.address && (
-                            <div className="flex items-start gap-2 text-xs text-slate-500 mt-1" title={c.address}>
-                                <MapPin size={13} className="text-slate-400 mt-0.5 shrink-0"/> 
-                                <span className="line-clamp-2 leading-relaxed">{c.address}</span>
-                            </div>
-                        )}
-                        {!c.phone && !c.phone2 && !c.address && <span className="text-slate-300 text-xs italic">- İletişim bilgisi yok -</span>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 valign-top">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border 
-                      ${c.type === 'musteri' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
-                        c.type === 'tedarikci' ? 'bg-orange-50 text-orange-700 border-orange-100' : 
-                        'bg-purple-50 text-purple-700 border-purple-100'}`}>
-                      {c.type === 'both' ? 'Müşteri & Tedarikçi' : c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right valign-top">
-                    <div className="flex flex-col items-end gap-1.5">
-                        {hasBalance ? (
-                            <>
-                                {formatBalance(c.balances.TL, 'TL')}
-                                {formatBalance(c.balances.USD, 'USD')}
-                                {formatBalance(c.balances.EUR, 'EUR')}
-                            </>
-                        ) : (
-                            <span className="text-slate-400 text-xs font-medium">Bakiye Yok</span>
-                        )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-center valign-top">
-                    <div className="flex items-center justify-center gap-2 opacity-100">
-                        <button 
-                        onClick={() => onSelectCustomer(c.id)}
-                        className="text-white bg-slate-800 hover:bg-primary p-2 rounded-lg transition-all shadow-sm"
-                        title="Hesap Detayı"
-                        >
-                        <ArrowRight size={16} />
-                        </button>
-                        <button 
-                        onClick={() => handleEditClick(c)}
-                        className="text-slate-500 hover:text-orange-600 hover:bg-orange-50 p-2 rounded-lg transition-colors border border-slate-200 bg-white"
-                        title="Düzenle"
-                        >
-                        <Edit2 size={16} />
-                        </button>
-                        <button 
-                        onClick={() => setDeleteId(c.id)}
-                        className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                        title="Sil"
-                        >
-                        <Trash2 size={16} />
-                        </button>
-                    </div>
-                  </td>
-                </tr>
-              )})}
-              {filtered.length === 0 && (
+              {displayList.map(c => renderCustomerRow(c))}
+              {displayList.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center">
                         <Search size={48} className="text-slate-200 mb-4" />
                         <p className="font-medium">Kayıt bulunamadı.</p>
-                        <p className="text-xs mt-1">{panelMode === 'store' ? 'Şube veya cari ekleyin.' : 'Yeni cari ekleyin.'}</p>
+                        <p className="text-xs mt-1">{panelMode === 'store' ? 'Şube ekleyin.' : 'Yeni cari ekleyin.'}</p>
                     </div>
                   </td>
                 </tr>

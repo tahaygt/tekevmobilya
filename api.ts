@@ -1,11 +1,13 @@
 
-// Muhasebe Script URL (Eski - Çalışan)
-const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbwVak5hQHzzpf0WZUxwN91rQB8hEwmWBwNKPnReU7JVyL-rRlwz-9HaKMUqn0dp-1SGBA/exec"; 
+// --- API CONFIGURATION ---
 
-// Mağaza Script URL (Yeni)
-const STORE_API_URL = "https://script.google.com/macros/s/AKfycbxTkdjGEv-d8eOL0eyHWg8Y9WCchXHH6tEkpRk_pYGdfLB1Xtsm2-JgQL7bkVDpi6pp-Q/exec";
+// 1. MUHASEBE SCRİPTİ (Accounting)
+const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbx7SEV7eexwPGyacXaN557aYxXUXOdqM1GD-vvYXW_AqOgzCHkieIZWo-8oJ6FVqwyzIg/exec";
 
-// Hangi URL'in kullanılacağını seçen yardımcı fonksiyon
+// 2. MAĞAZA SCRİPTİ (Store)
+const STORE_API_URL = "https://script.google.com/macros/s/AKfycbwbty34mv8ZgOargkHK7T546tJ7REL2W8frxFlVVD-WxaTos_-FV_HffKtVlaZymxRi3Q/exec";
+
+// Mod'a göre doğru URL'i seçen fonksiyon
 const getApiUrl = (mode: 'accounting' | 'store') => {
   return mode === 'store' ? STORE_API_URL : ACCOUNTING_API_URL;
 };
@@ -68,17 +70,37 @@ const parseDataFromSheet = (data: any) => {
 
   // İşlem kalemlerini (items) parse et
   if (data.transactions && Array.isArray(data.transactions)) {
-    data.transactions = data.transactions.map((t: any) => ({
-      ...t,
-      id: Number(t.id),
-      accId: t.accId ? Number(t.accId) : undefined,
-      safeId: t.safeId ? Number(t.safeId) : undefined,
-      linkedTransactionId: t.linkedTransactionId ? Number(t.linkedTransactionId) : undefined,
-      total: Number(t.total),
-      items: (typeof t.items === 'string' && t.items.startsWith('[')) 
-        ? JSON.parse(t.items) 
-        : t.items
-    })).filter((t: any) => !isNaN(Number(t.id)) && Number(t.id) !== 0); 
+    data.transactions = data.transactions.map((t: any) => {
+      let items = t.items;
+
+      // JSON String parsing with safety check
+      if (typeof t.items === 'string') {
+          const trimmed = t.items.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+             try {
+                 items = JSON.parse(trimmed);
+             } catch(e) {
+                 items = [];
+             }
+          } else {
+             // If it's a string but not a JSON array (e.g. empty string), treat as undefined
+             items = undefined;
+          }
+      } else if (!Array.isArray(t.items)) {
+          // If it's neither string nor array (e.g. null, object), treat as undefined
+          items = undefined;
+      }
+
+      return {
+        ...t,
+        id: Number(t.id),
+        accId: t.accId ? Number(t.accId) : undefined,
+        safeId: t.safeId ? Number(t.safeId) : undefined,
+        linkedTransactionId: t.linkedTransactionId ? Number(t.linkedTransactionId) : undefined,
+        total: Number(t.total),
+        items: items
+      };
+    }).filter((t: any) => !isNaN(Number(t.id)) && Number(t.id) !== 0); 
   }
 
   // Ürün fiyatlarını sayıya çevir
@@ -99,7 +121,11 @@ export const api = {
   fetchAll: async (mode: 'accounting' | 'store') => {
     try {
       const url = getApiUrl(mode);
-      const res = await fetch(`${url}?action=read&t=${Date.now()}`);
+      // redirect: 'follow' önemlidir.
+      const res = await fetch(`${url}?action=read&t=${Date.now()}`, {
+          method: 'GET',
+          redirect: 'follow' 
+      });
       
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       
@@ -120,7 +146,6 @@ export const api = {
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
-      keepalive: true, 
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
@@ -136,7 +161,6 @@ export const api = {
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
-      keepalive: true,
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
@@ -150,7 +174,6 @@ export const api = {
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
-      keepalive: true,
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },

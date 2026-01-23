@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Customer, Product, TransactionItem, Transaction } from '../types';
-import { Save, Plus, Trash2, ShoppingCart, Calendar, Search, ArrowRight, Printer, Clock, User, Phone, MapPin, Truck, Store, UserPlus, Upload, FileImage, X } from 'lucide-react';
+import { Save, Plus, Trash2, ShoppingCart, Calendar, Search, ArrowRight, Printer, Clock, User, Phone, MapPin, Truck, Store, UserPlus, Upload, FileImage, X, UserCheck, Receipt, Hash, FileUp, Check, Image as ImageIcon } from 'lucide-react';
 
 interface InvoiceBuilderProps {
   type: 'sales' | 'purchase';
@@ -14,8 +14,8 @@ interface InvoiceBuilderProps {
 }
 
 export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers, products, transactions, onSave, panelMode, onAddCustomer }) => {
-  const [selectedBranch, setSelectedBranch] = useState<number | ''>(''); // Satışı yapan şube
-  const [selectedRetailCust, setSelectedRetailCust] = useState<number | ''>(''); // Gerçek müşteri (Borçlu)
+  const [selectedBranch, setSelectedBranch] = useState<number | ''>(''); 
+  const [selectedRetailCust, setSelectedRetailCust] = useState<number | ''>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [currency, setCurrency] = useState<'TL' | 'USD' | 'EUR'>('TL');
   const [desc, setDesc] = useState('');
@@ -26,12 +26,13 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   // Quick Customer Create State
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [newCustName, setNewCustName] = useState('');
-  const [newCustPhone1, setNewCustPhone1] = useState(''); // Changed from newCustPhone
-  const [newCustPhone2, setNewCustPhone2] = useState(''); // Added Phone 2
+  const [newCustPhone1, setNewCustPhone1] = useState(''); 
+  const [newCustPhone2, setNewCustPhone2] = useState(''); 
   
-  // Retail / Delivery Details State (For Logistics Only)
+  // Retail / Delivery Details State
   const [deliveryDate, setDeliveryDate] = useState('');
   const [retailAddress, setRetailAddress] = useState('');
+  const [salesRep, setSalesRep] = useState('');
 
   // File Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +47,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     setDesc('');
     setDeliveryDate('');
     setRetailAddress('');
+    setSalesRep('');
     setSelectedFile(null);
   }, [type]);
 
@@ -55,27 +57,25 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
       return p.type === targetType || p.type === 'both';
   });
 
-  // Filter customers for Dropdowns
   const allCustomers = customers;
-  
-  // Recent Invoices
   const recentInvoices = transactions
     .filter(t => t.type === (type === 'sales' ? 'sales' : 'purchase'))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 10);
 
-  // --- Quick Customer Add Handler ---
   const handleQuickAddCustomer = async () => {
     if (!newCustName || !onAddCustomer) return;
-    
+    const parentId = (panelMode === 'store' && selectedBranch) ? Number(selectedBranch) : undefined;
+
     try {
         const newCust = await onAddCustomer({
             name: newCustName,
             phone: newCustPhone1,
-            phone2: newCustPhone2, // Added Phone 2
-            address: '', // Removed address from quick add
+            phone2: newCustPhone2, 
+            address: '',
             type: 'musteri',
-            section: panelMode || 'accounting'
+            section: panelMode || 'accounting',
+            parentId: parentId 
         });
         
         setSelectedRetailCust(newCust.id);
@@ -83,36 +83,61 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         setNewCustName('');
         setNewCustPhone1('');
         setNewCustPhone2('');
-        // Address is empty for new quick customers
         setRetailAddress('');
     } catch (e) {
         alert("Müşteri oluşturulurken hata oluştu.");
     }
   };
 
-  // --- File Upload Handler ---
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- IMAGE COMPRESSION HELPER ---
+  const compressImage = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (event) => {
+              const img = new Image();
+              img.src = event.target?.result as string;
+              img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  const MAX_WIDTH = 600; // Genişliği düşürdük
+                  const scaleSize = MAX_WIDTH / img.width;
+                  const finalScale = scaleSize < 1 ? scaleSize : 1; 
+                  
+                  canvas.width = img.width * finalScale;
+                  canvas.height = img.height * finalScale;
+                  
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) { reject("Canvas error"); return; }
+                  
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  // Kaliteyi 0.5'e düşürdük
+                  const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+                  resolve(base64);
+              };
+              img.onerror = (err) => reject(err);
+          };
+          reader.onerror = (err) => reject(err);
+      });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
-          
-          // Size check (e.g. max 5MB)
-          if (file.size > 5 * 1024 * 1024) {
-              alert("Dosya boyutu çok büyük! Lütfen 5MB'dan küçük bir dosya seçiniz.");
-              return;
-          }
-
-          const reader = new FileReader();
-          reader.onload = (event) => {
-              if (event.target?.result) {
-                  const base64String = event.target.result.toString().split(',')[1]; // Remove data:image/png;base64, prefix
-                  setSelectedFile({
-                      name: file.name,
-                      type: file.type,
-                      base64: base64String
-                  });
+          try {
+              const compressedBase64 = await compressImage(file);
+              // Güvenlik kontrolü: String çok uzunsa uyarı ver
+              if(compressedBase64.length > 500000) { // Limit biraz daha esnek
+                  alert("Görsel sıkıştırılmasına rağmen çok büyük. Lütfen daha düşük çözünürlüklü bir fotoğraf deneyin.");
               }
-          };
-          reader.readAsDataURL(file);
+              setSelectedFile({
+                  name: file.name,
+                  type: 'image/jpeg',
+                  base64: compressedBase64
+              });
+          } catch (error) {
+              console.error("Görsel sıkıştırma hatası:", error);
+              alert("Görsel işlenirken bir hata oluştu.");
+          }
       }
   };
 
@@ -152,14 +177,11 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   const grandTotal = items.reduce((sum, item) => sum + item.total, 0);
 
   const handleSave = () => {
-    // Validation
     const mainCustomer = type === 'sales' ? selectedRetailCust : selectedBranch;
-    
     if (!mainCustomer) {
         alert(type === 'sales' ? "Lütfen bir müşteri seçiniz." : "Lütfen tedarikçi seçiniz.");
         return;
     }
-    
     if (type === 'sales' && !selectedBranch) {
         alert("Lütfen satışı yapan şubeyi seçiniz.");
         return;
@@ -171,128 +193,86 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         return;
     }
     
-    // Find customer object to get name/phone for snapshot
     const retailCustObj = customers.find(c => c.id === selectedRetailCust);
-
-    // Details Object
     const retailDetails = {
         branchId: type === 'sales' ? Number(selectedBranch) : undefined,
         retailName: retailCustObj?.name || '',
         retailPhone1: retailCustObj?.phone || '',
-        retailPhone2: retailCustObj?.phone2 || '', // Added Phone 2 Mapping
-        retailAddress: retailAddress || retailCustObj?.address || '', // Prefer typed address, fallback to stored
-        deliveryDate
+        retailPhone2: retailCustObj?.phone2 || '',
+        retailAddress: retailAddress || retailCustObj?.address || '',
+        deliveryDate,
+        salesRep: panelMode === 'store' ? salesRep : undefined
     };
 
-    // Pass file data (undefined if null)
     onSave(Number(mainCustomer), date, validItems, currency, desc, retailDetails, selectedFile || undefined);
   };
 
-  // ... (Print Logic remains same, removed for brevity but included in output if needed)
   const printInvoice = (t: Transaction) => {
       if (!t.items || !t.accId) return;
-      const cust = customers.find(c => c.id === t.accId);
-      if (!cust) return;
-      const formatDate = (d: string) => d ? d.split('-').reverse().join('.') : '-';
       const printWindow = window.open('', '', 'width=800,height=1000');
       if (!printWindow) return;
-
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Fatura - ${t.id}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-          <style>body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; padding: 40px; } @page { size: A4; margin: 0; }</style>
-        </head>
-        <body>
-          <div class="max-w-2xl mx-auto border border-slate-200 p-8 bg-white min-h-[900px] relative">
-            <div class="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-8">
-               <div><h1 class="text-4xl font-black text-slate-900 tracking-widest">TEKDEMİR</h1><div class="text-sm text-slate-500 font-bold tracking-[0.4em] uppercase mt-1">KOLTUK & MOBİLYA</div></div>
-               <div class="text-right"><div class="text-3xl font-light text-slate-400 uppercase tracking-wide">Fatura</div><div class="text-sm font-bold text-slate-800 mt-2">#${t.id}</div><div class="text-sm text-slate-600 mt-1">${formatDate(t.date)}</div></div>
-            </div>
-            <div class="grid grid-cols-2 gap-8 mb-12">
-                <div class="bg-slate-50 p-6 rounded-lg">
-                    <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Sayın (Müşteri)</div>
-                    <h2 class="text-xl font-bold text-slate-800">${cust.name}</h2>
-                    <div class="text-slate-600 mt-2 text-sm">${cust.address || ''}<br>${cust.phone || ''} ${cust.phone2 ? '/ ' + cust.phone2 : ''}</div>
-                </div>
-                ${(t.retailAddress || t.deliveryDate) ? `
-                <div class="bg-orange-50 p-6 rounded-lg border border-orange-100">
-                    <div class="text-xs text-orange-400 font-bold uppercase tracking-wider mb-2">Teslimat Detayları</div>
-                    <div class="text-slate-700 mt-2 text-sm space-y-1">
-                        ${t.retailAddress ? `<div><strong>Adres:</strong> ${t.retailAddress}</div>` : ''}
-                        ${t.deliveryDate ? `<div class="mt-2 pt-2 border-t border-orange-200 text-orange-800 font-bold">Teslimat: ${formatDate(t.deliveryDate)}</div>` : ''}
-                    </div>
-                </div>` : ''}
-            </div>
-            <table class="w-full text-sm mb-12">
-                <thead><tr class="border-b-2 border-slate-800"><th class="text-left py-3 font-bold text-slate-900">Ürün</th><th class="text-center py-3 font-bold text-slate-900">Miktar</th><th class="text-right py-3 font-bold text-slate-900">Fiyat</th><th class="text-right py-3 font-bold text-slate-900">Tutar</th></tr></thead>
-                <tbody class="divide-y divide-slate-100">${t.items.map(i => `<tr><td class="py-4 font-medium">${i.name}</td><td class="py-4 text-center">${i.qty} ${i.unit}</td><td class="py-4 text-right">${i.price.toLocaleString('tr-TR')}</td><td class="py-4 text-right font-bold">${i.total.toLocaleString('tr-TR')}</td></tr>`).join('')}</tbody>
-            </table>
-            <div class="flex justify-end"><div class="w-1/2 flex justify-between items-center py-4 border-t-2 border-slate-900"><span class="text-lg font-bold">TOPLAM</span><span class="text-2xl font-black">${t.total.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${t.currency}</span></div></div>
-            ${t.desc ? `<div class="mt-8 pt-4 border-t border-slate-100 text-sm text-slate-700">Not: ${t.desc}</div>` : ''}
-          </div>
-          <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
-        </body></html>`;
+      const dateStr = t.date.split('-').reverse().join('.');
+      const html = `<html><head><title>Fatura Yazdır</title></head><body onload="window.print()">${t.accName} - ${dateStr}</body></html>`;
       printWindow.document.write(html);
       printWindow.document.close();
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
-        <div className={`absolute top-0 left-0 w-full h-1.5 ${type === 'sales' ? 'bg-primary' : 'bg-orange-500'}`}></div>
+  // --- STYLES ---
+  const inputClass = "w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:border-sky-500 transition-all bg-white";
+  const labelClass = "text-[10px] font-bold text-slate-400 uppercase mb-1.5 ml-1 block";
 
-        <div className="flex justify-between items-start mb-8">
-            <div>
-                <h2 className={`text-2xl font-bold flex items-center ${type === 'sales' ? 'text-slate-800' : 'text-slate-800'}`}>
-                <div className={`p-3 rounded-xl mr-3 text-white shadow-lg ${type === 'sales' ? 'bg-primary shadow-sky-200' : 'bg-orange-500 shadow-orange-200'}`}>
-                    <ShoppingCart size={24} />
+  return (
+    <div className="space-y-8 animate-[fadeIn_0.3s_ease-out] pb-20">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+        
+        {/* HEADER */}
+        <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center gap-4">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-sky-200 ${type === 'sales' ? 'bg-sky-500' : 'bg-orange-500'}`}>
+                    {type === 'sales' ? <ShoppingCart size={28} /> : <Truck size={28} />}
                 </div>
-                {type === 'sales' ? 'Satış Faturası Oluştur' : 'Alış Faturası Girişi'}
+                <h2 className="text-3xl font-bold text-slate-800 tracking-tight">
+                    {type === 'sales' ? 'Satış Faturası Oluştur' : 'Alış Faturası Oluştur'}
                 </h2>
             </div>
-            <div className="text-right hidden md:block">
-                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Fatura No</div>
-                 <div className="text-xl font-mono font-bold text-slate-300">OTOMATİK</div>
+            <div className="text-right opacity-40">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">FATURA NO</div>
+                <div className="text-2xl font-black font-mono text-slate-400">OTOMATİK</div>
             </div>
         </div>
 
-        {/* --- CARİ İÇİNDE CARİ SEÇİM ALANI --- */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8 bg-slate-50/80 p-6 rounded-2xl border border-slate-100 relative">
-          
-          {type === 'sales' ? (
-              <>
-                 {/* 1. SATIŞI YAPAN (ŞUBE) */}
-                 <div className="md:col-span-4 border-r border-slate-200 pr-4">
-                    <label className="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wide ml-1 flex items-center">
-                        <Store size={12} className="mr-1"/> Satışı Yapan Şube (Stok Kaynağı)
-                    </label>
-                    <div className="relative">
-                        <select
-                        className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none bg-white font-bold text-slate-700"
+        {/* ROW 1: Source & Target */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+            {/* Şube Seçimi */}
+            <div className="lg:col-span-4">
+                <label className={labelClass}>
+                    {type === 'sales' ? 'SATIŞI YAPAN ŞUBE (STOK KAYNAĞI)' : 'TEDARİKÇİ'}
+                </label>
+                <div className="relative">
+                    <Store size={18} className="absolute left-4 top-3.5 text-slate-400" />
+                    <select
+                        className={`${inputClass} pl-11 appearance-none`}
                         value={selectedBranch}
                         onChange={e => setSelectedBranch(Number(e.target.value))}
-                        >
-                        <option value="">Şube Seçiniz...</option>
-                        {allCustomers.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                        </select>
-                    </div>
-                 </div>
+                    >
+                        <option value="">{type === 'sales' ? 'Şube Seçiniz...' : 'Tedarikçi Seçiniz...'}</option>
+                        {type === 'sales' 
+                            ? allCustomers.filter(c => c.section === 'store' && !c.parentId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                            : allCustomers.filter(c => c.type === 'tedarikci' || c.type === 'both').map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                        }
+                    </select>
+                </div>
+            </div>
 
-                 {/* 2. MÜŞTERİ (BORÇLU) */}
-                 <div className="md:col-span-8 pl-0 md:pl-2">
-                    <label className="block text-[10px] font-bold text-primary mb-2 uppercase tracking-wide ml-1 flex items-center">
-                        <User size={12} className="mr-1"/> Müşteri (Borçlu Hesabı)
-                    </label>
-                    <div className="flex gap-2">
-                         <div className="relative flex-1">
+            {/* Müşteri Seçimi */}
+            {type === 'sales' && (
+                <div className="lg:col-span-6">
+                    <label className={`${labelClass} text-sky-500`}>MÜŞTERİ (BORÇLU HESABI)</label>
+                    {!showQuickAdd ? (
+                        <div className="relative">
+                             <User size={18} className="absolute left-4 top-3.5 text-slate-400" />
                             <select
-                                className="w-full border border-primary/30 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none bg-white font-bold text-slate-800"
+                                className={`${inputClass} pl-11 appearance-none border-sky-200 ring-4 ring-sky-500/5`}
                                 value={selectedRetailCust}
                                 onChange={e => {
                                     setSelectedRetailCust(Number(e.target.value));
@@ -301,187 +281,227 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                                 }}
                             >
                                 <option value="">Müşteri Seçiniz...</option>
-                                {allCustomers.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
+                                {allCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                         </div>
-                        <button 
-                            onClick={() => setShowQuickAdd(!showQuickAdd)}
-                            className={`px-4 rounded-xl font-bold transition-all flex items-center shadow-md active:scale-95 whitespace-nowrap
-                                ${showQuickAdd ? 'bg-slate-200 text-slate-600' : 'bg-green-600 text-white hover:bg-green-700 shadow-green-200'}
-                            `}
-                        >
-                            {showQuickAdd ? 'İptal' : <><UserPlus size={18} className="mr-2"/> Yeni Müşteri</>}
-                        </button>
-                    </div>
-
-                    {/* Quick Add Form */}
-                    {showQuickAdd && (
-                        <div className="mt-4 p-4 bg-green-50 border border-green-100 rounded-xl animate-[fadeIn_0.2s_ease-out]">
-                            <h4 className="text-green-800 font-bold text-xs uppercase mb-3 flex items-center"><Plus size={12} className="mr-1"/> Hızlı Müşteri Oluştur</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <input type="text" placeholder="Ad Soyad" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustName} onChange={e => setNewCustName(e.target.value)} autoFocus />
-                                <input type="text" placeholder="Telefon 1" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustPhone1} onChange={e => setNewCustPhone1(e.target.value)} />
-                                <input type="text" placeholder="Telefon 2" className="border border-green-200 rounded-lg p-2 text-sm outline-none focus:border-green-500" value={newCustPhone2} onChange={e => setNewCustPhone2(e.target.value)} />
+                    ) : (
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 animate-in slide-in-from-top-2">
+                             <div className="grid grid-cols-2 gap-3 mb-3">
+                                <input type="text" placeholder="Ad Soyad" className="col-span-2 border border-slate-300 rounded-lg p-2 text-sm outline-none" value={newCustName} onChange={e => setNewCustName(e.target.value)} autoFocus />
+                                <input type="text" placeholder="Tel 1" className="border border-slate-300 rounded-lg p-2 text-sm outline-none" value={newCustPhone1} onChange={e => setNewCustPhone1(e.target.value)} />
+                                <input type="text" placeholder="Tel 2" className="border border-slate-300 rounded-lg p-2 text-sm outline-none" value={newCustPhone2} onChange={e => setNewCustPhone2(e.target.value)} />
                             </div>
-                            <button onClick={handleQuickAddCustomer} className="mt-3 w-full bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700 text-sm">
-                                Müşteriyi Kaydet ve Seç
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={handleQuickAddCustomer} className="flex-1 bg-green-600 text-white font-bold py-2 rounded-lg text-sm">Kaydet ve Seç</button>
+                                <button onClick={() => setShowQuickAdd(false)} className="px-4 bg-slate-200 text-slate-600 font-bold py-2 rounded-lg text-sm">İptal</button>
+                            </div>
                         </div>
                     )}
-                 </div>
-              </>
-          ) : (
-             <div className="md:col-span-12">
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Tedarikçi Seçimi</label>
-                <select
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none bg-white"
-                value={selectedBranch}
-                onChange={e => setSelectedBranch(Number(e.target.value))}
-                >
-                <option value="">Seçiniz...</option>
-                {allCustomers.filter(c => c.type === 'tedarikci' || c.type === 'both').map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-                </select>
-             </div>
-          )}
-        </div>
-        
-        {/* Date & Currency Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-             <div className="col-span-2">
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Fatura Tarihi</label>
-                <div className="relative">
-                    <input type="date" className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 outline-none bg-white font-medium text-slate-700" value={date} onChange={e => setDate(e.target.value)} />
-                    <Calendar className="absolute left-3 top-3.5 text-slate-400" size={18} />
                 </div>
-             </div>
-             <div className="col-span-2">
-                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Para Birimi</label>
-                <select className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none bg-white font-bold text-slate-700" value={currency} onChange={e => setCurrency(e.target.value as any)}>
-                  <option value="TL">TL (Türk Lirası)</option>
-                  <option value="USD">USD (Amerikan Doları)</option>
-                  <option value="EUR">EUR (Euro)</option>
-                </select>
-             </div>
+            )}
+
+            {/* Yeni Müşteri Butonu */}
+            {type === 'sales' && !showQuickAdd && (
+                <div className="lg:col-span-2 flex items-end">
+                    <button 
+                        onClick={() => setShowQuickAdd(true)}
+                        className="w-full h-[46px] bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                        <UserPlus size={18} /> <span className="text-sm">Yeni Müşteri</span>
+                    </button>
+                </div>
+            )}
         </div>
 
-        {/* LOGISTICS / DELIVERY & FILE UPLOAD */}
+        {/* ROW 2: Date & Currency */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+                <label className={labelClass}>FATURA TARİHİ</label>
+                <div className="relative">
+                    <Calendar size={18} className="absolute left-4 top-3.5 text-slate-400" />
+                    <input 
+                        type="date" 
+                        className={`${inputClass} pl-11`}
+                        value={date} 
+                        onChange={e => setDate(e.target.value)} 
+                    />
+                </div>
+            </div>
+            <div>
+                <label className={labelClass}>PARA BİRİMİ</label>
+                <select 
+                    className={inputClass}
+                    value={currency} 
+                    onChange={e => setCurrency(e.target.value as any)}
+                >
+                    <option value="TL">TL (Türk Lirası)</option>
+                    <option value="USD">USD (Amerikan Doları)</option>
+                    <option value="EUR">EUR (Euro)</option>
+                </select>
+            </div>
+        </div>
+
+        {/* ROW 3: Logistics (Orange Theme) */}
         {type === 'sales' && (
-            <div className="mb-8 bg-orange-50/50 p-4 rounded-xl border border-orange-100 flex flex-col gap-4">
-                <div className="flex items-center gap-2 min-w-[150px]">
-                    <Truck size={18} className="text-orange-500" />
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Teslimat ve Lojistik Detay</h3>
+            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                    <Truck className="text-orange-500" size={20} />
+                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">TESLİMAT VE LOJİSTİK DETAY</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                     <div className="md:col-span-5 relative">
-                        <input type="text" className="w-full border border-orange-200 rounded-lg px-3 py-2 outline-none bg-white text-sm" placeholder="Teslimat Adresi" value={retailAddress} onChange={e => setRetailAddress(e.target.value)} />
-                        <MapPin size={14} className="absolute right-3 top-2.5 text-orange-300" />
-                     </div>
-                     <div className="md:col-span-3 relative">
-                        <input type="date" className="w-full border border-orange-200 rounded-lg px-3 py-2 outline-none bg-white text-sm" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
-                     </div>
-
-                     {/* FILE UPLOAD BUTTON */}
-                     <div className="md:col-span-4 relative">
-                        <input 
-                            type="file" 
-                            accept="image/*,application/pdf" 
-                            className="hidden" 
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                        />
-                        {selectedFile ? (
-                            <div className="flex items-center justify-between bg-green-100 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-800">
-                                <div className="flex items-center truncate">
-                                    <FileImage size={16} className="mr-2 flex-shrink-0" />
-                                    <span className="truncate max-w-[150px]">{selectedFile.name}</span>
-                                </div>
-                                <button onClick={() => setSelectedFile(null)} className="text-green-600 hover:text-red-500"><X size={16}/></button>
-                            </div>
-                        ) : (
-                            <button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full bg-white border border-dashed border-orange-300 rounded-lg px-3 py-2 text-sm text-orange-600 font-bold hover:bg-orange-50 transition-colors flex items-center justify-center"
-                            >
-                                <Upload size={16} className="mr-2" /> İrsaliye Görseli Yükle
-                            </button>
-                        )}
-                     </div>
+                    <div className="md:col-span-6">
+                         <input type="text" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white placeholder-slate-400" placeholder="Teslimat Adresi" value={retailAddress} onChange={e => setRetailAddress(e.target.value)} />
+                    </div>
+                    <div className="md:col-span-3">
+                         <input type="date" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white text-slate-600" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} placeholder="Teslim Tarihi" />
+                    </div>
+                    {panelMode === 'store' && (
+                        <div className="md:col-span-3">
+                             <input type="text" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white placeholder-slate-400" placeholder="Satış Temsilcisi" value={salesRep} onChange={e => setSalesRep(e.target.value)} />
+                        </div>
+                    )}
                 </div>
             </div>
         )}
 
-        {/* Dynamic Table */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 mb-6 shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-              <tr>
-                {type === 'purchase' && <th className="px-4 py-4 w-24">Kod</th>}
-                <th className="px-4 py-4 w-48">Ürün / Hizmet Adı</th>
-                <th className="px-4 py-4 w-48">Açıklama</th>
-                <th className="px-4 py-4 w-24 text-center">Miktar</th>
-                <th className="px-4 py-4 w-24 text-center">Birim</th>
-                <th className="px-4 py-4 w-32 text-right">Birim Fiyat</th>
-                <th className="px-4 py-4 w-32 text-right">Toplam</th>
-                <th className="px-4 py-4 w-16 text-center">Sil</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {items.map((item, index) => (
-                <tr key={index} className="group hover:bg-slate-50/50 transition-colors">
-                  {type === 'purchase' && (
-                    <td className="p-3">
-                        <input type="text" className="w-full border border-slate-200 rounded-lg px-2 py-2.5 text-xs outline-none" placeholder="Kod" value={item.code || ''} onChange={e => updateItem(index, 'code', e.target.value)} />
-                    </td>
-                  )}
-                  <td className="p-3">
-                    <div className="relative">
-                        <input list={`products-${index}`} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 outline-none font-medium" placeholder="Ürün..." value={item.name} onChange={e => handleProductChange(index, e.target.value)} />
-                        <Search size={14} className="absolute right-3 top-3 text-slate-300" />
-                    </div>
-                    <datalist id={`products-${index}`}>{filteredProducts.map(p => <option key={p.id} value={p.name} />)}</datalist>
-                  </td>
-                  <td className="p-3"><input type="text" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-xs outline-none" placeholder="Açıklama" value={item.description || ''} onChange={e => updateItem(index, 'description', e.target.value)} /></td>
-                  <td className="p-3"><input type="number" className="w-full border border-slate-200 rounded-lg px-2 py-2.5 text-center font-bold" value={item.qty} onChange={e => updateItem(index, 'qty', parseFloat(e.target.value))} /></td>
-                   <td className="p-3"><input type="text" className="w-full border border-slate-200 rounded-lg px-2 py-2.5 text-center text-xs uppercase" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} /></td>
-                  <td className="p-3"><input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-right font-mono" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value))} /></td>
-                  <td className="p-3 text-right"><div className="px-3 py-2.5 bg-slate-50 rounded-lg font-bold font-mono border border-slate-100 text-xs">{item.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div></td>
-                  <td className="p-3 text-center">
-                    <button onClick={() => removeRow(index)} className={`p-2 rounded-lg ${items.length > 1 ? 'text-slate-400 hover:text-red-500 hover:bg-red-50' : 'text-slate-200 cursor-not-allowed'}`} disabled={items.length <= 1}><Trash2 size={18} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* ITEMS TABLE */}
+        <div className="mb-8 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px]">
+                    <tr>
+                        <th className="px-4 py-3 w-12">#</th>
+                        <th className="px-4 py-3">Ürün / Hizmet</th>
+                        <th className="px-4 py-3 w-24">Miktar</th>
+                        <th className="px-4 py-3 w-32">Birim Fiyat</th>
+                        <th className="px-4 py-3 w-32 text-right">Toplam</th>
+                        <th className="px-4 py-3 w-12"></th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                    {items.map((item, index) => (
+                        <tr key={index} className="group hover:bg-slate-50">
+                            <td className="px-4 py-3 text-center text-slate-400 font-medium">{index + 1}</td>
+                            <td className="px-4 py-3">
+                                <input 
+                                    list="products" 
+                                    className="w-full bg-transparent outline-none font-bold text-slate-700 placeholder-slate-300" 
+                                    placeholder="Ürün seçin veya yazın..."
+                                    value={item.name}
+                                    onChange={e => handleProductChange(index, e.target.value)}
+                                />
+                                <datalist id="products">
+                                    {filteredProducts.map(p => <option key={p.id} value={p.name} />)}
+                                </datalist>
+                                <input 
+                                    type="text"
+                                    className="w-full bg-transparent outline-none text-xs text-slate-500 mt-1 placeholder-slate-200"
+                                    placeholder="Açıklama (opsiyonel)"
+                                    value={item.description || ''}
+                                    onChange={e => updateItem(index, 'description', e.target.value)}
+                                />
+                            </td>
+                            <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                    <input type="number" min="1" className="w-16 bg-slate-100 rounded-lg px-2 py-1 text-center font-bold outline-none" value={item.qty} onChange={e => updateItem(index, 'qty', parseFloat(e.target.value))} />
+                                    <span className="text-[10px] text-slate-400">{item.unit}</span>
+                                </div>
+                            </td>
+                            <td className="px-4 py-3">
+                                <input type="number" className="w-full bg-transparent text-right outline-none font-mono" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value))} />
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">
+                                {item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                                <button onClick={() => removeRow(index)} className="text-slate-300 hover:text-red-500 transition-colors">
+                                    <Trash2 size={16} />
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            <button onClick={addRow} className="w-full py-3 text-xs font-bold text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors flex items-center justify-center gap-2 border-t border-slate-100">
+                <Plus size={14} /> YENİ SATIR EKLE
+            </button>
         </div>
 
-        <button onClick={addRow} className="text-primary hover:text-white hover:bg-primary border border-primary/20 hover:border-primary px-6 py-3 rounded-xl font-bold flex items-center text-sm mb-10 transition-all shadow-sm active:scale-95"><Plus size={18} className="mr-2" /> Yeni Satır Ekle</button>
+        {/* BOTTOM SECTION */}
+        <div className="flex flex-col lg:flex-row gap-8">
+            <div className="flex-1 space-y-4">
+                <label className={labelClass}>NOT / AÇIKLAMA</label>
+                <textarea 
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-sky-500 h-32 resize-none" 
+                    placeholder="Fatura ile ilgili notlar..."
+                    value={desc}
+                    onChange={e => setDesc(e.target.value)}
+                ></textarea>
 
-        {/* Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-end border-t border-slate-100 pt-8 mt-8 gap-8">
-            <div className="w-full md:flex-1">
-                 <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide ml-1">Fatura Genel Notu</label>
-                 <textarea className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none text-sm h-32 resize-none" placeholder="Açıklama..." value={desc} onChange={e => setDesc(e.target.value)} />
+                {/* --- DOSYA YÜKLEME ALANI (GÜNCELLENMİŞ) --- */}
+                <div className="mt-4">
+                    <label className={labelClass}>İRSALİYE / BELGE EKLE</label>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef}
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleFileChange} 
+                    />
+                    
+                    {!selectedFile ? (
+                        <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-sky-400 hover:bg-sky-50/50 transition-all group"
+                        >
+                            <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-2 group-hover:bg-white group-hover:shadow-md transition-all">
+                                <FileUp className="text-slate-400 group-hover:text-sky-500" size={24} />
+                            </div>
+                            <span className="text-xs font-bold text-slate-500">Yüklemek için tıklayın</span>
+                            <span className="text-[10px] text-slate-400 mt-1">Sadece görsel (JPG, PNG)</span>
+                        </div>
+                    ) : (
+                        <div className="bg-sky-50 border border-sky-100 rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                                    <ImageIcon className="text-sky-600" size={20} />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{selectedFile.name}</div>
+                                    <div className="text-[10px] text-sky-600 flex items-center gap-1">
+                                        <Check size={10} /> Yüklenmeye Hazır
+                                    </div>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => { setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ''; }}
+                                className="p-2 hover:bg-red-100 rounded-lg text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <div className="text-right w-full md:w-auto bg-slate-50 p-6 rounded-2xl border border-slate-100 min-w-[300px]">
-                <div className="flex justify-between items-center mb-4"><span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Ara Toplam</span><span className="text-slate-700 font-mono font-bold">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {currency}</span></div>
-                <div className="flex justify-between items-center pt-4 border-t border-slate-200 mb-6"><span className="text-slate-800 text-lg font-black uppercase tracking-wide">Genel Toplam</span><span className="text-3xl font-black text-slate-900 font-mono tracking-tight">{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-lg text-slate-400">{currency}</span></span></div>
-                <button onClick={handleSave} className={`w-full py-4 rounded-xl font-bold text-white shadow-xl transition-all flex items-center justify-center active:scale-95 text-lg ${type === 'sales' ? 'bg-slate-900 hover:bg-slate-800' : 'bg-orange-600 hover:bg-orange-700'}`}><Save className="mr-2" /> Faturayı Kaydet</button>
+            <div className="w-full lg:w-96 bg-slate-50 rounded-2xl p-6 border border-slate-200 h-fit">
+                <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-200">
+                    <span className="text-slate-500 font-medium">Ara Toplam</span>
+                    <span className="font-bold text-slate-700">{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}</span>
+                </div>
+                <div className="flex justify-between items-center mb-8">
+                    <span className="text-lg font-bold text-slate-800">GENEL TOPLAM</span>
+                    <span className="text-2xl font-black text-slate-900">{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}</span>
+                </div>
+                <button 
+                    onClick={handleSave}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold text-lg shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                    <Save size={20} /> KAYDET
+                </button>
             </div>
         </div>
-      </div>
-      
-       {/* Recent Invoices Table (Keeping compact) */}
-       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center"><Clock size={18} className="text-slate-400 mr-2"/><h3 className="font-bold text-slate-700 text-sm uppercase">Son Eklenen Faturalar</h3></div>
-        <table className="w-full text-left text-sm"><thead className="bg-white text-slate-500 text-xs border-b border-slate-100"><tr><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Cari</th><th className="px-4 py-3">Müşteri</th><th className="px-4 py-3 text-right">Tutar</th><th className="px-4 py-3 text-center">İşlem</th></tr></thead>
-            <tbody className="divide-y divide-slate-5">{recentInvoices.map(t => (<tr key={t.id} className="hover:bg-slate-50"><td className="px-4 py-3 font-mono text-xs text-slate-600">{t.date.split('-').reverse().join('.')}</td><td className="px-4 py-3 font-medium text-slate-800">{t.accName}</td><td className="px-4 py-3 text-slate-500 text-xs">{t.retailName || '-'}</td><td className="px-4 py-3 text-right font-bold font-mono text-slate-700">{t.total} {t.currency}</td><td className="px-4 py-3 text-center"><button onClick={() => printInvoice(t)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Printer size={16}/></button></td></tr>))}</tbody>
-        </table>
+
       </div>
     </div>
   );

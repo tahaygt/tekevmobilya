@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+// Firebase Storage referansı kaldırıldı
 import { Layout } from './components/Layout';
 import { Customers } from './components/Customers';
 import { CustomerDetail } from './components/CustomerDetail';
@@ -11,7 +12,7 @@ import { Cash } from './components/Cash';
 import { DailyReport } from './components/DailyReport';
 import { SuccessModal } from './components/SuccessModal';
 import { Customer, Product, Safe, Transaction, TransactionItem, Page, PaymentMethod } from './types';
-import { LogOut, AlertCircle, Lock, Mail, RefreshCw, Calculator, Store, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { LogOut, AlertCircle, Lock, Mail, RefreshCw, Calculator, Store, ChevronRight, CheckCircle2, ShieldCheck, PlayCircle } from 'lucide-react';
 import { api } from './api';
 
 // --- FIREBASE CONFIGURATION ---
@@ -25,6 +26,7 @@ const firebaseConfig = {
 };
 
 let auth: any;
+
 try {
   const app = initializeApp(firebaseConfig);
   auth = getAuth(app);
@@ -42,7 +44,6 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
 
     useEffect(() => {
         if (user) setStep('select');
-        else setStep('auth');
     }, [user]);
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -51,7 +52,7 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
         setError('');
 
         if (!auth) {
-            setError("Firebase bağlantısı yapılamadı.");
+            setError("Firebase bağlantı hatası.");
             setLoading(false);
             return;
         }
@@ -61,7 +62,13 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
             setStep('select'); 
         } catch (err: any) {
             console.error(err);
-            setError("Giriş yapılamadı: " + err.message);
+            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+                setError("E-posta veya şifre hatalı.");
+            } else if (err.code === 'auth/too-many-requests') {
+                setError("Çok fazla başarısız deneme. Lütfen bekleyin.");
+            } else {
+                setError("Giriş yapılamadı: " + err.message);
+            }
         } finally {
             setLoading(false);
         }
@@ -69,60 +76,77 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
 
     if (step === 'select') {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-                <div className="w-full max-w-4xl animate-[fadeIn_0.5s_ease-out]">
-                    <div className="text-center mb-12">
-                         <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-widest mb-4">PANEL SEÇİMİ</h1>
-                         <div className="h-1 w-24 bg-primary mx-auto rounded-full mb-4"></div>
-                         <p className="text-slate-400 font-medium">Lütfen işlem yapmak istediğiniz departmanı seçiniz.</p>
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans">
+                {/* Background Effects */}
+                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop')] bg-cover bg-center opacity-10"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-slate-900/80"></div>
+                
+                <div className="w-full max-w-5xl animate-[fadeIn_0.6s_cubic-bezier(0.22,1,0.36,1)] relative z-10">
+                    <div className="text-center mb-16 space-y-4">
+                         <div className="inline-flex items-center justify-center p-2 bg-slate-800/50 backdrop-blur-md rounded-full border border-slate-700/50 mb-4">
+                            <span className="px-4 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                                <ShieldCheck size={14} /> Güvenli Oturum Açıldı
+                            </span>
+                         </div>
+                         <h1 className="text-5xl md:text-6xl font-black text-white tracking-tight">
+                            Hoş Geldiniz
+                         </h1>
+                         <p className="text-slate-400 text-lg font-medium max-w-2xl mx-auto leading-relaxed">
+                            Tekdemir Mobilya Yönetim Sistemi'ne erişim sağlandı. İşlem yapmak istediğiniz departmanı seçerek devam edebilirsiniz.
+                         </p>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                        {/* Accounting Card */}
                         <button 
                             onClick={() => onPanelSelect('accounting')}
-                            className="group relative bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 rounded-3xl p-8 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-primary/20 text-left"
+                            className="group relative bg-white/[0.03] hover:bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-[2rem] p-10 text-left transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(14,165,233,0.3)] overflow-hidden"
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 rounded-3xl transition-opacity"></div>
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/30 transition-colors"></div>
+                            
                             <div className="relative z-10">
-                                <div className="bg-primary/20 w-20 h-20 rounded-2xl flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform duration-300 border border-primary/20">
-                                    <Calculator size={40} />
+                                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center mb-8 shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform duration-500">
+                                    <Calculator size={32} className="text-white" />
                                 </div>
-                                <h2 className="text-3xl font-bold text-white mb-2">MUHASEBE</h2>
-                                <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                    Toptan cari takibi, finansal raporlar, fatura yönetimi ve genel muhasebe işlemleri.
+                                <h2 className="text-3xl font-bold text-white mb-3">Muhasebe & Finans</h2>
+                                <p className="text-slate-400 text-sm leading-relaxed mb-8 h-12">
+                                    Cari hesap yönetimi, faturalandırma, kasa takibi ve detaylı finansal raporlamalar.
                                 </p>
                                 <div className="flex items-center text-primary font-bold tracking-wide text-sm group-hover:translate-x-2 transition-transform">
-                                    GİRİŞ YAP <ChevronRight size={18} className="ml-2" />
+                                    PANELİ AÇ <ChevronRight size={18} className="ml-2" />
                                 </div>
                             </div>
                         </button>
 
+                        {/* Store Card */}
                         <button 
                             onClick={() => onPanelSelect('store')}
-                            className="group relative bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 rounded-3xl p-8 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-orange-500/20 text-left"
+                            className="group relative bg-white/[0.03] hover:bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-[2rem] p-10 text-left transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(249,115,22,0.3)] overflow-hidden"
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/20 to-transparent opacity-0 group-hover:opacity-100 rounded-3xl transition-opacity"></div>
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 group-hover:bg-orange-500/30 transition-colors"></div>
+                            
                             <div className="relative z-10">
-                                <div className="bg-orange-500/20 w-20 h-20 rounded-2xl flex items-center justify-center mb-6 text-orange-500 group-hover:scale-110 transition-transform duration-300 border border-orange-500/20">
-                                    <Store size={40} />
+                                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center mb-8 shadow-lg shadow-orange-500/30 group-hover:scale-110 transition-transform duration-500">
+                                    <Store size={32} className="text-white" />
                                 </div>
-                                <h2 className="text-3xl font-bold text-white mb-2">MAĞAZA</h2>
-                                <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                    Perakende satış, şube yönetimi, stok takibi ve günlük mağaza raporları.
+                                <h2 className="text-3xl font-bold text-white mb-3">Mağaza Yönetimi</h2>
+                                <p className="text-slate-400 text-sm leading-relaxed mb-8 h-12">
+                                    Perakende satış işlemleri, şube stok kontrolü, ürün takibi ve günlük satış raporları.
                                 </p>
                                 <div className="flex items-center text-orange-500 font-bold tracking-wide text-sm group-hover:translate-x-2 transition-transform">
-                                    GİRİŞ YAP <ChevronRight size={18} className="ml-2" />
+                                    PANELİ AÇ <ChevronRight size={18} className="ml-2" />
                                 </div>
                             </div>
                         </button>
                     </div>
 
-                    <div className="mt-12 text-center">
+                    <div className="mt-16 text-center">
                          <button 
-                            onClick={() => { if(auth) signOut(auth); }}
-                            className="text-slate-500 hover:text-white text-sm flex items-center justify-center mx-auto gap-2 transition-colors px-4 py-2 rounded-lg hover:bg-white/5"
+                            onClick={() => { if(auth) signOut(auth); else window.location.reload(); }}
+                            className="group text-slate-500 hover:text-white text-sm font-medium inline-flex items-center gap-2 transition-all px-6 py-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10"
                          >
-                            <LogOut size={16}/> Farklı bir hesaba geçiş yap
+                            <LogOut size={16} className="group-hover:-translate-x-1 transition-transform"/> 
+                            {user ? 'Güvenli Çıkış Yap' : 'Giriş Ekranına Dön'}
                          </button>
                     </div>
                 </div>
@@ -131,42 +155,79 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
     }
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-             {/* Decorative Background Elements */}
-             <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px]"></div>
-             <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px]"></div>
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+             {/* Dynamic Background */}
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950"></div>
+             <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] animate-pulse"></div>
+             <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse delay-1000"></div>
 
-             <div className="bg-white/95 backdrop-blur-xl w-full max-w-md rounded-3xl shadow-2xl p-10 relative z-10 border border-white/50">
+             <div className="bg-white/5 backdrop-blur-2xl w-full max-w-[420px] rounded-[2rem] shadow-2xl p-8 sm:p-12 relative z-10 border border-white/10">
                 <div className="text-center mb-10">
-                    <h1 className="text-4xl font-black text-slate-900 tracking-wider mb-2">TEKDEMİR</h1>
-                    <div className="h-1 w-16 bg-gradient-to-r from-primary to-blue-600 mx-auto rounded-full"></div>
-                    <p className="text-slate-500 text-sm mt-3 font-medium uppercase tracking-widest">Yönetim Paneli v15</p>
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-slate-800 to-slate-900 border border-white/10 mb-6 shadow-xl">
+                        <span className="text-2xl font-black text-white">T</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-white tracking-tight mb-2">TEKDEMİR</h1>
+                    <p className="text-slate-400 text-sm font-medium tracking-wide">Mobilya Yönetim Sistemi v15</p>
                 </div>
-                <form onSubmit={handleLogin} className="space-y-6">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">E-Posta Adresi</label>
+
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">E-Posta</label>
                         <div className="relative group">
-                            <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
-                            <input type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 pl-12 outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm font-medium transition-all" placeholder="ornek@tekdemir.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <Mail className="text-slate-500 group-focus-within:text-primary transition-colors" size={18} />
+                            </div>
+                            <input 
+                                type="email" 
+                                className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-white placeholder-slate-600 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all text-sm font-medium" 
+                                placeholder="E-posta adresiniz" 
+                                value={email} 
+                                onChange={e => setEmail(e.target.value)} 
+                                required 
+                            />
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Güvenlik Şifresi</label>
+                    
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Şifre</label>
                         <div className="relative group">
-                            <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
-                            <input type="password" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 pl-12 outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm font-medium transition-all" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <Lock className="text-slate-500 group-focus-within:text-primary transition-colors" size={18} />
+                            </div>
+                            <input 
+                                type="password" 
+                                className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-white placeholder-slate-600 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all text-sm font-medium" 
+                                placeholder="••••••••" 
+                                value={password} 
+                                onChange={e => setPassword(e.target.value)} 
+                                required 
+                            />
                         </div>
                     </div>
+
                     {error && (
-                        <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg flex items-center">
-                            <AlertCircle size={16} className="mr-2 shrink-0"/> {error}
+                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-4 rounded-xl flex items-start gap-3 animate-[fadeIn_0.3s_ease-out]">
+                            <AlertCircle size={16} className="shrink-0 mt-0.5"/> 
+                            <div className="flex-1">
+                                <p className="font-bold mb-1">Hata Oluştu</p>
+                                <p className="opacity-90">{error}</p>
+                            </div>
                         </div>
                     )}
-                    <button type="submit" disabled={loading} className="w-full py-4 rounded-xl text-white font-bold bg-slate-900 hover:bg-slate-800 shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all flex items-center justify-center">
-                        {loading ? <RefreshCw className="animate-spin mr-2"/> : null}
+
+                    <button 
+                        type="submit" 
+                        disabled={loading} 
+                        className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-primary to-blue-600 hover:from-sky-400 hover:to-blue-500 shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all flex items-center justify-center"
+                    >
+                        {loading ? <RefreshCw className="animate-spin mr-2" size={18}/> : null}
                         {loading ? 'Giriş Yapılıyor...' : 'Panele Giriş Yap'}
                     </button>
                 </form>
+             </div>
+             
+             <div className="absolute bottom-6 text-center w-full">
+                <p className="text-slate-600 text-xs font-medium">© 2024 Tekdemir Yazılım. Tüm hakları saklıdır.</p>
              </div>
         </div>
     );
@@ -250,7 +311,7 @@ const App: React.FC = () => {
           }
       } catch (err) {
           console.error("Veri çekme hatası:", err);
-          alert("Veriler Google Sheets'ten çekilemedi.\nLütfen Google Script dağıtımının 'Herkes (Anyone)' erişimine açık olduğunu kontrol ediniz.");
+          alert("Veriler sunucudan çekilemedi. İnternet bağlantınızı kontrol ediniz.");
       } finally {
           setLoadingData(false);
       }
@@ -280,77 +341,111 @@ const App: React.FC = () => {
         section: mode,
         balances: { TL: 0, USD: 0, EUR: 0 } 
     };
+    
+    // Optimistic
     setCustomers(prev => [...prev, newCustomer]);
-    setSyncing(true);
-    await api.create('customers', newCustomer, mode);
-    setSyncing(false);
+    
+    try {
+        setSyncing(true);
+        await api.create('customers', newCustomer, mode);
+    } catch(e) {
+        console.error(e);
+        alert("Kayıt sırasında hata oluştu.");
+    } finally {
+        setSyncing(false);
+    }
+    
     return newCustomer;
   };
 
   const editCustomer = async (updated: Customer) => {
     const mode = getMode();
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c));
-    setSyncing(true);
-    await api.update('customers', updated, mode);
-    setSyncing(false);
+    try {
+        setSyncing(true);
+        await api.update('customers', updated, mode);
+    } finally {
+        setSyncing(false);
+    }
   };
 
   const deleteCustomer = async (id: number) => {
     const mode = getMode();
     setCustomers(prev => prev.filter(c => c.id !== id));
-    setSyncing(true);
-    await api.delete('customers', id, mode);
-    setSyncing(false);
+    try {
+        setSyncing(true);
+        await api.delete('customers', id, mode);
+    } finally {
+        setSyncing(false);
+    }
   };
   
   const addProduct = async (data: Omit<Product, 'id'>) => {
       const mode = getMode();
       const newProd = { ...data, id: Date.now() };
       setProducts(prev => [...prev, newProd]);
-      setSyncing(true);
-      await api.create('products', newProd, mode);
-      setSyncing(false);
+      try {
+        setSyncing(true);
+        await api.create('products', newProd, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const editProduct = async (updated: Product) => {
       const mode = getMode();
       setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
-      setSyncing(true);
-      await api.update('products', updated, mode);
-      setSyncing(false);
+      try {
+        setSyncing(true);
+        await api.update('products', updated, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const deleteProduct = async (id: number) => {
       const mode = getMode();
       setProducts(prev => prev.filter(p => p.id !== id));
-      setSyncing(true);
-      await api.delete('products', id, mode);
-      setSyncing(false);
+      try {
+        setSyncing(true);
+        await api.delete('products', id, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
   
   const addSafe = async (name: string) => {
       const mode = getMode();
       const newSafe = { id: Date.now(), name, balances: { TL: 0, USD: 0, EUR: 0 } };
       setSafes(prev => [...prev, newSafe]);
-      setSyncing(true);
-      await api.create('safes', newSafe, mode);
-      setSyncing(false);
+      try {
+        setSyncing(true);
+        await api.create('safes', newSafe, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const editSafe = async (updated: Safe) => {
       const mode = getMode();
       setSafes(prev => prev.map(s => s.id === updated.id ? updated : s));
-      setSyncing(true);
-      await api.update('safes', updated, mode);
-      setSyncing(false);
+      try {
+        setSyncing(true);
+        await api.update('safes', updated, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const deleteSafe = async (id: number) => {
       const mode = getMode();
       setSafes(prev => prev.filter(s => s.id !== id));
-      setSyncing(true);
-      await api.delete('safes', id, mode);
-      setSyncing(false);
+      try {
+        setSyncing(true);
+        await api.delete('safes', id, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => {
@@ -361,10 +456,13 @@ const App: React.FC = () => {
     
     if (!customer) return;
 
+    setSyncing(true);
+
     // Transaction ID oluştur
     const newId = Date.now();
 
-    const newTrans: Transaction = {
+    // 2. Create Base Transaction Object
+    const baseTrans: Transaction = {
       id: newId,
       date, 
       type, 
@@ -375,13 +473,31 @@ const App: React.FC = () => {
       items,
       desc,
       section: mode,
-      ...(retailDetails || {})
+      ...(retailDetails || {}), // Contains salesRep, retailName, etc.
+      // deliveryNoteUrl burada boş bırakılıyor, Script dolduracak.
+      deliveryNoteUrl: "" 
     };
 
-    setSyncing(true);
+    // V18 SCRIPT UYUMLULUĞU:
+    // Script 'data.fileData' bekliyor.
+    // Scriptin içindeki 'saveFileToDrive' fonksiyonu 'filePayload.fileData', 'filePayload.fileName' bekliyor.
+    // Ayrıca veriyi Google Apps Script'e gönderirken "fileData" objesi olarak paketlememiz gerekiyor.
     
-    // Optimistic Update (Dosya yüklemesi sürerken arayüzde gösterelim)
-    setTransactions(prev => [...prev, newTrans]);
+    const transactionPayload = {
+        ...baseTrans,
+        fileData: fileData ? {
+            fileName: `fatura_${newId}.jpg`, // Script fileName bekliyor
+            mimeType: fileData.type,
+            fileData: fileData.base64 // Script fileData bekliyor (base64 string)
+        } : null
+    };
+
+    // 3. Optimistic Update (Ekran donmasın diye localde gösteriyoruz)
+    // Localde base64 gösteriyoruz ki anında görünsün, sayfayı yenileyince link gelecek.
+    setTransactions(prev => [...prev, {
+        ...baseTrans,
+        deliveryNoteUrl: fileData ? `data:${fileData.type};base64,${fileData.base64}` : undefined
+    }]);
     
     const currentBal = customer.balances[currency] || 0;
     const newBal = type === 'sales' ? currentBal + total : currentBal - total;
@@ -389,18 +505,19 @@ const App: React.FC = () => {
     
     setCustomers(prev => prev.map(c => c.id === customerId ? updatedCustomer : c));
 
-    // API Calls
-    // Eğer dosya varsa, payload içine fileData ekliyoruz. Backend bunu algılayıp Drive'a atacak.
-    const transactionPayload = fileData 
-        ? { ...newTrans, fileData: { fileName: fileData.name, mimeType: fileData.type, fileData: fileData.base64 } } 
-        : newTrans;
-
-    await api.create('transactions', transactionPayload, mode);
-    await api.update('customers', updatedCustomer, mode);
-
-    setSyncing(false);
-    setActivePage('customers');
-    setSuccessMessage('Fatura başarıyla kaydedildi.');
+    try {
+        // 4. Send Data to Sheets API
+        await api.create('transactions', transactionPayload, mode);
+        await api.update('customers', updatedCustomer, mode);
+        
+        setSuccessMessage('Fatura ve dosya başarıyla kaydedildi.');
+        setActivePage('customers');
+    } catch (error) {
+        console.error("Fatura kaydetme hatası:", error);
+        alert("Fatura sunucuya kaydedilirken bir hata oluştu. Görsel boyutu çok büyük olabilir.");
+    } finally {
+        setSyncing(false);
+    }
   };
 
   const processPayment = async (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string, date: string, linkedTransactionId?: number) => {
@@ -429,7 +546,6 @@ const App: React.FC = () => {
      };
 
      setSyncing(true);
-
      setTransactions(prev => [...prev, newTrans]);
      
      const curCustBal = customer.balances[currency] || 0;
@@ -442,13 +558,16 @@ const App: React.FC = () => {
      const updatedSafe = { ...safe, balances: { ...safe.balances, [currency]: newSafeBal } };
      setSafes(prev => prev.map(s => s.id === safe.id ? updatedSafe : s));
 
-     // API Calls
-     await api.create('transactions', newTrans, mode);
-     await api.update('customers', updatedCustomer, mode);
-     await api.update('safes', updatedSafe, mode);
-
-     setSyncing(false);
-     setSuccessMessage('Ödeme işlemi başarıyla kaydedildi.');
+     try {
+        await api.create('transactions', newTrans, mode);
+        await api.update('customers', updatedCustomer, mode);
+        await api.update('safes', updatedSafe, mode);
+        setSuccessMessage('Ödeme işlemi başarıyla kaydedildi.');
+     } catch (e) {
+         alert("Ödeme kaydedilirken hata oluştu.");
+     } finally {
+        setSyncing(false);
+     }
   };
 
   const deleteTransaction = async (id: number) => {
@@ -461,7 +580,8 @@ const App: React.FC = () => {
       const currency = trans.currency;
       setSyncing(true);
 
-      // 1. Revert Customer Balance
+      // Revert states locally first...
+      // (State updates removed for brevity, assuming same logic as before)
       if(trans.accId) {
           const customer = customers.find(c => c.id === trans.accId);
           if(customer) {
@@ -473,11 +593,11 @@ const App: React.FC = () => {
               
               const updatedCustomer = { ...customer, balances: { ...customer.balances, [currency]: (customer.balances[currency]||0) + balanceChange } };
               setCustomers(prev => prev.map(c => c.id === customer.id ? updatedCustomer : c));
+              // We trigger api update but don't await blocking UI too much here, handled in try/finally
               api.update('customers', updatedCustomer, mode);
           }
       }
 
-      // 2. Revert Safe Balance
       if(trans.safeId && (trans.type === 'cash_in' || trans.type === 'cash_out')) {
            const safe = safes.find(s => s.id === trans.safeId);
            if(safe) {
@@ -492,18 +612,27 @@ const App: React.FC = () => {
       }
 
       setTransactions(prev => prev.filter(t => t.id !== id));
-      await api.delete('transactions', id, mode);
-      setSyncing(false);
+      
+      try {
+        await api.delete('transactions', id, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const handleEditTransaction = async (newTrans: Transaction) => {
       const mode = getMode();
       const oldTrans = transactions.find(t => t.id === newTrans.id);
       if (!oldTrans) return;
-      setSyncing(true);
+      
       setTransactions(prev => prev.map(t => t.id === newTrans.id ? newTrans : t));
-      await api.update('transactions', newTrans, mode);
-      setSyncing(false);
+      
+      try {
+        setSyncing(true);
+        await api.update('transactions', newTrans, mode);
+      } finally {
+        setSyncing(false);
+      }
   };
 
   const handleCustomerSelect = (id: number) => {
@@ -513,36 +642,20 @@ const App: React.FC = () => {
   
   const handleLogout = () => {
       if (auth) signOut(auth);
+      setUser(null);
   };
 
   if (loadingAuth || loadingData) {
       return (
-        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white relative overflow-hidden">
-             {/* Gradient Background Animation */}
-             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 z-0"></div>
-             
-             {/* Decorative Elements */}
-             <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[128px] animate-pulse z-0"></div>
-             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[128px] animate-pulse delay-700 z-0"></div>
-
-             <div className="relative z-10 flex flex-col items-center">
-                 {/* Logo / Spinner Container */}
-                 <div className="relative mb-8">
-                     <div className="w-24 h-24 rounded-full border-4 border-slate-700/50 border-t-primary animate-spin"></div>
-                     <div className="absolute inset-0 flex items-center justify-center">
-                         <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center shadow-lg border border-slate-700">
-                             <Calculator size={32} className="text-primary animate-pulse" />
-                         </div>
-                     </div>
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white relative overflow-hidden font-sans">
+             <div className="relative mb-8">
+                 <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center shadow-lg border border-slate-700 animate-pulse">
+                     <Calculator size={32} className="text-white" />
                  </div>
-                 
-                 <h2 className="text-2xl font-bold tracking-tight text-white mb-2">
-                    {loadingData ? 'Veriler Eşitleniyor...' : 'Sistem Başlatılıyor...'}
-                 </h2>
-                 <p className="text-slate-400 text-sm font-medium animate-pulse">
-                    Lütfen bekleyiniz, güvenli bağlantı kuruluyor.
-                 </p>
              </div>
+             <h2 className="text-xl font-bold tracking-tight text-white mb-2">
+                {loadingData ? 'Veriler Eşitleniyor...' : 'Yükleniyor...'}
+             </h2>
         </div>
       );
   }
@@ -575,7 +688,20 @@ const App: React.FC = () => {
         >
         {
             activePage === 'customers' ? <Customers customers={customers} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} panelMode={panelMode} /> :
-            activePage === 'customer-detail' ? <CustomerDetail customer={customers.find(c => c.id === selectedCustId)!} transactions={filteredTransactions} safes={safes} onBack={() => setActivePage('customers')} onPayment={processPayment} onDeleteTransaction={deleteTransaction} onEditTransaction={handleEditTransaction} /> :
+            activePage === 'customer-detail' ? <CustomerDetail 
+                customer={customers.find(c => c.id === selectedCustId)!} 
+                allCustomers={customers} 
+                transactions={filteredTransactions} 
+                safes={safes} 
+                onBack={() => setActivePage('customers')} 
+                onPayment={processPayment} 
+                onDeleteTransaction={deleteTransaction} 
+                onEditTransaction={handleEditTransaction}
+                onSelectCustomer={handleCustomerSelect} // YENİ
+                onAddCustomer={addCustomer} // YENİ
+                onDeleteCustomer={deleteCustomer} // YENİ EKLENDİ (Alt Cari Silme İçin)
+                panelMode={panelMode}
+            /> :
             activePage === 'products' ? <Products products={products} onAddProduct={addProduct} onEditProduct={editProduct} onDeleteProduct={deleteProduct} /> :
             (activePage === 'invoice-sales' || activePage === 'invoice-purchase') ? <InvoiceBuilder type={activePage === 'invoice-sales' ? 'sales' : 'purchase'} customers={filteredCustomers} products={products} onSave={processInvoice} transactions={filteredTransactions} panelMode={panelMode} onAddCustomer={addCustomer} /> :
             activePage === 'cash' ? <Cash safes={safes} transactions={filteredTransactions} onAddSafe={addSafe} onEditSafe={editSafe} onDeleteSafe={deleteSafe} /> :
