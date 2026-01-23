@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Customer, Transaction, Safe, PaymentMethod, Product } from '../types';
-import { ArrowLeft, ArrowRight, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft, FileDown, Link as LinkIcon, FileImage, X, User, CornerDownRight, Users, Plus, TrendingUp, TrendingDown, CreditCard, Box } from 'lucide-react';
+import { Customer, Transaction, Safe, PaymentMethod, Product, TransactionItem } from '../types';
+import { ArrowLeft, ArrowRight, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft, FileDown, Link as LinkIcon, FileImage, X, User, CornerDownRight, Users, Plus, TrendingUp, TrendingDown, CreditCard, Box, UserCheck, Save } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomerDetailProps {
@@ -34,9 +34,12 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const [newSubName, setNewSubName] = useState('');
   const [newSubPhone, setNewSubPhone] = useState('');
 
-  // Edit Modal State
+  // Edit Customer Modal State
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [editFormData, setEditFormData] = useState<Customer>(customer);
+
+  // Edit Transaction Modal State
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // Payment Form
   const [amount, setAmount] = useState('');
@@ -63,11 +66,8 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const isSubCustomerView = Boolean(customer.parentId);
 
   // 1. GERÇEK BAKİYE HESAPLAMA (Tüm işlemlerden)
-  // Search filtresinden bağımsız olarak carinin toplam bakiyesini hesaplar.
   const realBalances = useMemo(() => {
       const bals = { TL: 0, USD: 0, EUR: 0 };
-      
-      // Bu cariye ait tüm işlemleri al
       const allCustTrans = transactions.filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
 
       allCustTrans.forEach(t => {
@@ -85,24 +85,21 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
   // 2. İŞLEM HESAPLAMA VE SIRALAMA (ESKİDEN -> YENİYE)
   const processedTransactions = useMemo(() => {
-    // A. İlgili cariye ait işlemleri filtrele
     let filtered = transactions.filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
     
-    // B. Arama filtresi
     if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         filtered = filtered.filter(t => 
             (t.desc || '').toLowerCase().includes(searchLower) ||
             t.total.toString().includes(searchLower) ||
             t.items?.some(i => (i.name || '').toLowerCase().includes(searchLower)) ||
-            (t.retailName || '').toLowerCase().includes(searchLower)
+            (t.retailName || '').toLowerCase().includes(searchLower) ||
+            (t.salesRep || '').toLowerCase().includes(searchLower)
         );
     }
 
-    // C. Tarihe göre ESKİDEN -> YENİYE sırala (En son işlem en altta)
     filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // D. Kümülatif Bakiye Hesapla (Tablo satırları için)
     const runningBalances = { TL: 0, USD: 0, EUR: 0 };
     
     return filtered.map(t => {
@@ -148,6 +145,34 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
       }
   };
 
+  // Transaction Edit Handlers
+  const handleStartEditTransaction = (t: Transaction) => {
+      setEditingTransaction({ ...t }); // Clone for editing
+  };
+
+  const handleSaveTransaction = () => {
+      if (editingTransaction && onEditTransaction) {
+          // If items exist, recalculate total from items
+          let finalTrans = { ...editingTransaction };
+          if (finalTrans.items && finalTrans.items.length > 0) {
+              const newTotal = finalTrans.items.reduce((sum, item) => sum + (item.qty * item.price), 0);
+              finalTrans.total = newTotal;
+          }
+          
+          onEditTransaction(finalTrans);
+          setEditingTransaction(null);
+      }
+  };
+
+  const updateTransItem = (index: number, field: keyof TransactionItem, value: any) => {
+      if (!editingTransaction || !editingTransaction.items) return;
+      const newItems = [...editingTransaction.items];
+      (newItems[index] as any)[field] = value;
+      newItems[index].total = newItems[index].qty * newItems[index].price;
+      setEditingTransaction({ ...editingTransaction, items: newItems });
+  };
+
+
   const handleAddSubCustomer = async () => {
       if(!newSubName) return;
       try {
@@ -180,7 +205,6 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   };
 
   const renderBalanceBox = (currency: 'TL' | 'USD' | 'EUR') => {
-     // GÜNCELLEME: Customer objesinden değil, hesaplanmış realBalances'dan alıyoruz.
      const bal = realBalances[currency];
      const isPositive = bal > 0; // Borçlu
      const isNegative = bal < 0; // Alacaklı
@@ -214,7 +238,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   return (
     <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
       {/* Transaction Delete Modal */}
-      <ConfirmationModal isOpen={!!deleteId} title="İşlemi Sil" message="Bu işlemi silmek istediğinize emin misiniz?" onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} />
+      <ConfirmationModal isOpen={!!deleteId} title="İşlemi Sil" message="Bu işlemi silmek istediğinize emin misiniz? Bakiye geri alınacaktır." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} />
       
       {/* Sub Customer Delete Modal */}
       <ConfirmationModal isOpen={!!deleteSubId} title="Alt Cariyi Sil" message="Bu cariyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz." onConfirm={confirmDeleteSub} onCancel={() => setDeleteSubId(null)} />
@@ -273,7 +297,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
         </div>
       </div>
       
-      {/* Printable Header - Visible only when printing */}
+      {/* Printable Header */}
       <div className="hidden print-only mb-8 text-center border-b pb-4">
           <h1 className="text-2xl font-bold">{customer.name} - Hesap Ekstresi</h1>
           <p className="text-sm text-gray-500">{new Date().toLocaleDateString('tr-TR')}</p>
@@ -281,7 +305,6 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
       {/* Content Tabs */}
       <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden min-h-[500px] print:shadow-none print:border-none">
-          {/* Sadece Ana Cari ise Sekmeleri Göster */}
           {!isSubCustomerView && (
               <div className="flex items-center gap-8 px-8 border-b border-slate-100 no-print">
                  <button onClick={() => setActiveTab('transactions')} className={`py-6 text-sm font-bold border-b-2 transition-all ${activeTab === 'transactions' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -295,7 +318,6 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
               </div>
           )}
           
-          {/* Alt Cari ise veya 'transactions' seçiliyse tabloyu göster */}
           {currentTab === 'transactions' ? (
               <div className="p-0">
                   <div className="overflow-x-auto">
@@ -303,12 +325,12 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                         <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-100 print:bg-gray-100">
                             <tr>
                                 <th className="px-8 py-4 w-32">Tarih</th>
-                                <th className="px-8 py-4">Açıklama / Ürünler</th>
+                                <th className="px-8 py-4">Açıklama / Ürünler / Temsilci</th>
                                 <th className="px-8 py-4 text-center w-32">Tür</th>
                                 <th className="px-8 py-4 text-right w-32">Borç</th>
                                 <th className="px-8 py-4 text-right w-32">Alacak</th>
                                 <th className="px-8 py-4 text-right w-32 bg-slate-100/50">Bakiye</th>
-                                <th className="px-8 py-4 text-center w-16 no-print">Sil</th>
+                                <th className="px-8 py-4 text-center w-24 no-print">İşlem</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -323,6 +345,14 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                         <td className="px-8 py-4">
                                             <div className="font-bold text-slate-700">{t.desc || (t.items ? 'Fatura' : 'İşlem')}</div>
                                             <div className="text-xs text-slate-400 truncate max-w-[300px]">{t.items?.map(i => i.name).join(', ')}</div>
+                                            
+                                            {/* Satış Temsilcisi (Sadece Mağaza Modunda) */}
+                                            {panelMode === 'store' && t.salesRep && (
+                                                <div className="text-[10px] font-bold text-orange-600 uppercase mt-1 flex items-center gap-1">
+                                                    <UserCheck size={12} /> {t.salesRep}
+                                                </div>
+                                            )}
+
                                             {t.deliveryNoteUrl && (
                                                 <button onClick={() => setViewingImage(t.deliveryNoteUrl || null)} className="mt-1 text-[10px] flex items-center text-blue-500 hover:underline no-print">
                                                     <FileImage size={10} className="mr-1"/> İrsaliye
@@ -348,7 +378,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                         <td className="px-8 py-4 text-right font-mono font-bold text-green-600 text-xs">{isCredit ? t.total.toLocaleString() : '-'}</td>
                                         <td className="px-8 py-4 text-right font-mono font-bold text-slate-800 text-xs bg-slate-50/50">{(t as any).snapshotBalance.toLocaleString()} {t.currency}</td>
                                         <td className="px-8 py-4 text-center no-print">
-                                            <button onClick={() => setDeleteId(t.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={14}/></button>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <button onClick={() => handleStartEditTransaction(t)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors" title="Düzenle"><Edit2 size={14}/></button>
+                                                <button onClick={() => setDeleteId(t.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sil"><Trash2 size={14}/></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 )
@@ -359,7 +392,6 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                 </tr>
                             )}
                         </tbody>
-                        {/* TABLE FOOTER FOR FINAL BALANCE (GÜNCEL BAKİYE - RealBalances'dan) */}
                         <tfoot className="bg-slate-100 border-t border-slate-200">
                              <tr>
                                  <td colSpan={5} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
@@ -385,7 +417,6 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                           <span className="font-bold text-sm">Yeni Alt Cari Ekle</span>
                       </button>
                       
-                      {/* Sub Add Form Inline */}
                       {showSubAdd && (
                           <div className="col-span-full bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-4 animate-in slide-in-from-left-4">
                               <h4 className="font-bold text-slate-800 mb-4">Hızlı Cari Ekleme</h4>
@@ -423,6 +454,77 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
               </div>
           )}
       </div>
+
+       {/* Edit Transaction Modal */}
+       {editingTransaction && (
+           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEditingTransaction(null)} />
+               <div className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 overflow-y-auto max-h-[90vh]">
+                   <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b pb-3">
+                       <Edit2 className="mr-2 text-blue-500" size={20} /> İşlemi Düzenle
+                   </h3>
+
+                   <div className="space-y-4">
+                       <div className="grid grid-cols-2 gap-4">
+                           <div>
+                               <label className="text-[10px] font-bold text-slate-500 uppercase">Tarih</label>
+                               <input type="date" className="w-full border border-slate-200 rounded-lg p-2.5" value={editingTransaction.date} onChange={e => setEditingTransaction({...editingTransaction, date: e.target.value})} />
+                           </div>
+                           <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Açıklama</label>
+                                <input type="text" className="w-full border border-slate-200 rounded-lg p-2.5" value={editingTransaction.desc || ''} onChange={e => setEditingTransaction({...editingTransaction, desc: e.target.value})} />
+                           </div>
+                       </div>
+                       
+                       {panelMode === 'store' && (
+                           <div>
+                               <label className="text-[10px] font-bold text-slate-500 uppercase">Satış Temsilcisi</label>
+                               <input type="text" className="w-full border border-slate-200 rounded-lg p-2.5" value={editingTransaction.salesRep || ''} onChange={e => setEditingTransaction({...editingTransaction, salesRep: e.target.value})} />
+                           </div>
+                       )}
+
+                       {/* Eğer ürünlü bir işlemse (Fatura) */}
+                       {editingTransaction.items && editingTransaction.items.length > 0 ? (
+                           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                               <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Ürünler</h4>
+                               <div className="space-y-2">
+                                   {editingTransaction.items.map((item, idx) => (
+                                       <div key={idx} className="grid grid-cols-12 gap-2 items-center text-sm">
+                                           <div className="col-span-5 font-medium truncate">{item.name}</div>
+                                           <div className="col-span-2">
+                                               <input type="number" className="w-full border rounded px-1 py-1 text-center" value={item.qty} onChange={e => updateTransItem(idx, 'qty', Number(e.target.value))} />
+                                           </div>
+                                           <div className="col-span-3">
+                                               <input type="number" className="w-full border rounded px-1 py-1 text-right" value={item.price} onChange={e => updateTransItem(idx, 'price', Number(e.target.value))} />
+                                           </div>
+                                           <div className="col-span-2 text-right font-mono font-bold">
+                                               {(item.qty * item.price).toLocaleString()}
+                                           </div>
+                                       </div>
+                                   ))}
+                                   <div className="text-right pt-2 border-t border-slate-200 font-bold text-slate-800">
+                                       Toplam: {editingTransaction.items.reduce((s, i) => s + (i.qty * i.price), 0).toLocaleString()} {editingTransaction.currency}
+                                   </div>
+                               </div>
+                           </div>
+                       ) : (
+                           // Nakit İşlemi ise sadece tutar düzenle
+                           <div>
+                               <label className="text-[10px] font-bold text-slate-500 uppercase">Tutar ({editingTransaction.currency})</label>
+                               <input type="number" className="w-full border border-slate-200 rounded-lg p-2.5 font-bold font-mono text-lg" value={editingTransaction.total} onChange={e => setEditingTransaction({...editingTransaction, total: Number(e.target.value)})} />
+                           </div>
+                       )}
+
+                       <div className="flex gap-2 justify-end pt-4">
+                           <button onClick={() => setEditingTransaction(null)} className="px-4 py-2 text-slate-500 bg-slate-100 rounded-lg font-bold">İptal</button>
+                           <button onClick={handleSaveTransaction} className="px-6 py-2 text-white bg-blue-600 rounded-lg font-bold hover:bg-blue-700 flex items-center">
+                               <Save size={18} className="mr-2"/> Kaydet
+                           </button>
+                       </div>
+                   </div>
+               </div>
+           </div>
+       )}
 
        {/* Edit Customer Modal */}
        {isEditingCustomer && (

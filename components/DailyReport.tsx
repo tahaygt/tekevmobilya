@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Transaction, Customer, PaymentMethod } from '../types';
-import { Printer, Download, Calendar, Edit3, Filter, Box, TrendingUp, TrendingDown, PieChart, Users, Store, User, Truck, DollarSign, Wallet } from 'lucide-react';
+import { Printer, Download, Calendar, Edit3, Filter, Box, TrendingUp, TrendingDown, PieChart, Users, Store, User, Truck, DollarSign, Wallet, UserCheck, CheckCircle } from 'lucide-react';
 
 interface DailyReportProps {
   transactions: Transaction[];
@@ -82,6 +82,33 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
   }, [activeTransactions, activeTab]);
 
+  // --- SADECE MAĞAZA MODU: SATIŞ TEMSİLCİSİ PERFORMANSI ---
+  const salesByRep = useMemo(() => {
+      if (panelMode !== 'store') return [];
+
+      const sales = activeTransactions.filter(t => t.type === 'sales');
+      const grouped: Record<string, { total: number, count: number, items: Record<string, number> }> = {};
+
+      sales.forEach(t => {
+          const rep = t.salesRep || 'Belirtilmemiş';
+          if (!grouped[rep]) grouped[rep] = { total: 0, count: 0, items: {} };
+          
+          grouped[rep].total += t.total;
+          grouped[rep].count += 1;
+          
+          // Ürün kırılımı
+          if (t.items) {
+              t.items.forEach(i => {
+                  if (!grouped[rep].items[i.name]) grouped[rep].items[i.name] = 0;
+                  grouped[rep].items[i.name] += i.qty;
+              });
+          }
+      });
+      
+      return Object.entries(grouped).map(([name, data]) => ({ name, ...data }));
+  }, [activeTransactions, panelMode]);
+
+
   return (
     <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
       {/* Top Bar */}
@@ -158,6 +185,18 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                             <div className="col-span-2 text-slate-400 font-mono">{t.date.split('-').reverse().join('.')}</div>
                                             <div className="col-span-4 font-bold text-slate-700">
                                                 {t.items?.map(i => i.name).join(', ') || t.desc}
+                                                {/* MAĞAZA MODU: SATIŞ TEMSİLCİSİ */}
+                                                {panelMode === 'store' && t.salesRep && (
+                                                    <div className="text-[9px] text-orange-600 uppercase font-bold mt-0.5 flex items-center gap-1">
+                                                        <UserCheck size={10} /> {t.salesRep}
+                                                    </div>
+                                                )}
+                                                {/* MAĞAZA MODU: AÇIKLAMA */}
+                                                {panelMode === 'store' && t.desc && t.items && (
+                                                    <div className="text-[10px] text-slate-400 italic mt-0.5">
+                                                        {t.desc}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="col-span-2 text-center">
                                                 <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold
@@ -244,6 +283,48 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                 </div>
             )}
         </div>
+
+        {/* --- SADECE MAĞAZA MODU: SATIŞ TEMSİLCİSİ PERFORMANSI --- */}
+        {panelMode === 'store' && salesByRep.length > 0 && (
+            <div className="mt-12 break-inside-avoid">
+                 <div className="border border-orange-100 rounded-2xl overflow-hidden bg-white shadow-sm">
+                    <div className="bg-orange-50/50 px-6 py-4 border-b border-orange-100 font-bold text-orange-700 text-sm uppercase flex items-center gap-2">
+                        <UserCheck size={16}/> Satış Temsilcisi Performansı ({activeTab === 'daily' ? 'Günlük' : 'Aylık'})
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+                        {salesByRep.map((rep, idx) => (
+                            <div key={idx} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex justify-between items-start mb-4 border-b border-slate-50 pb-3">
+                                    <div>
+                                        <div className="font-bold text-slate-800 flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                                            {rep.name}
+                                        </div>
+                                        <div className="text-xs text-slate-400 mt-1">{rep.count} İşlem</div>
+                                    </div>
+                                    <div className="text-lg font-black text-slate-800 font-mono">
+                                        {formatMoney(rep.total)}
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-slate-50 rounded-lg p-3">
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Satılan Ürünler</h4>
+                                    <ul className="space-y-1">
+                                        {Object.entries(rep.items).map(([prodName, qty], i) => (
+                                            <li key={i} className="flex justify-between text-xs text-slate-600">
+                                                <span className="truncate pr-2">{prodName}</span>
+                                                <span className="font-bold">{qty} Adet</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+            </div>
+        )}
+
       </div>
     </div>
   );
