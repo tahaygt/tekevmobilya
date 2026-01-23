@@ -1,8 +1,8 @@
 
 // --- API CONFIGURATION ---
 
-// 1. MUHASEBE SCRİPTİ (Accounting) - GÜNCELLENDİ
-const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbzmQAYBKQsjSAQs5pTf5KNina_LFkL7d9xg-FZ4trAItNdZNKJNajJmO7wpnRE59VU7VQ/exec";
+// 1. MUHASEBE SCRİPTİ (Accounting) - GÜNCELLENDİ (YENİ URL)
+const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbx6rFAwg_PMZMreb-YgkB5r9gn6_idXOY7gKZ9ByHusjqn0AOf8EFcHbQXtQXUI0HiJkA/exec";
 
 // 2. MAĞAZA SCRİPTİ (Store)
 const STORE_API_URL = "https://script.google.com/macros/s/AKfycbz5soHbBcAIfiiCxuntdbbO8QuCqVVB-8rIzp29KJgIXP9mt0Y8CkhmU8I09ZAnb1n1bQ/exec";
@@ -30,90 +30,109 @@ const prepareDataForSheet = (data: any) => {
   return cleanData;
 };
 
-// YARDIMCI: Geçerli bir kayıt mı kontrol eder (NaN, Boş İsim, 0 ID engeller)
-const isValidItem = (item: any) => {
-    if (!item) return false;
-    const id = Number(item.id);
-    const hasName = item.name && item.name.toString().trim() !== '';
-    // ID sayı olmalı, NaN olmamalı, 0 olmamalı ve ismi olmalı
-    return !isNaN(id) && id !== 0 && hasName;
+// YARDIMCI: Tek bir satırı parse eden ve onaran fonksiyon
+// Hem eski (Data sütunu) hem yeni (Ayrı sütunlar) yapıyı destekler
+const parseRow = (item: any) => {
+    if (!item) return null;
+
+    // 1. LEGACY DATA KURTARMA (Eski veriler 'Data' sütununda JSON string olarak gelir)
+    if (item.Data && typeof item.Data === 'string' && item.Data.trim().startsWith('{')) {
+        try {
+            const legacyData = JSON.parse(item.Data);
+            
+            // DÜZELTME: Yeni sütunlar (item), eski veriyi (legacyData) ezebilir.
+            // ANCAK, yeni sütun boşsa (""), eski veriyi korumalıyız.
+            // Aksi takdirde, eski kayıtlarda 'id' sütunu boş olduğu için veri kaybolur.
+            
+            for (const key in legacyData) {
+                // Eğer gelen veride bu alan yoksa veya boşsa, eski veriden al
+                if (item[key] === undefined || item[key] === null || item[key] === "") {
+                    item[key] = legacyData[key];
+                }
+            }
+            // Not: Eğer item[key] doluysa (yeni sistemden güncellenmişse), o değer geçerli olur.
+            
+        } catch (e) {
+            console.warn("Legacy Data parse error for item ID:", item.id);
+        }
+    }
+
+    // Gereksiz 'Data' alanını temizle (hafıza ve karışıklık önlemek için)
+    delete item.Data;
+
+    // 2. TİP DÖNÜŞÜMLERİ
+    if (item.id) item.id = Number(item.id);
+    if (item.price) item.price = Number(item.price);
+    if (item.purchasePrice) item.purchasePrice = Number(item.purchasePrice);
+    if (item.total) item.total = Number(item.total);
+    
+    // İlişkili ID'ler
+    if (item.accId) item.accId = Number(item.accId);
+    if (item.safeId) item.safeId = Number(item.safeId);
+    if (item.linkedTransactionId) item.linkedTransactionId = Number(item.linkedTransactionId);
+    if (item.branchId) item.branchId = Number(item.branchId);
+
+    // 3. BAKİYE PARSE (String -> Object)
+    if (item.balances) {
+        if (typeof item.balances === 'string' && item.balances.startsWith('{')) {
+             try { item.balances = JSON.parse(item.balances); } catch(e) {}
+        }
+    }
+    // Eğer bakiye hiç yoksa veya hatalıysa varsayılan ekle
+    if (!item.balances || typeof item.balances !== 'object') {
+        item.balances = { TL: 0, USD: 0, EUR: 0 };
+    }
+
+    // 4. ITEMS PARSE (String -> Array)
+    if (item.items) {
+        if (typeof item.items === 'string') {
+            const trimmed = item.items.trim();
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+               try { item.items = JSON.parse(trimmed); } catch(e) { item.items = []; }
+            } else {
+               item.items = [];
+            }
+        }
+    }
+
+    // 5. GEÇERLİLİK KONTROLÜ
+    // ID'si olmayan veya 0 olan kayıtları ele (Başlık satırı kalıntısı vb.)
+    if (!item.id || item.id === 0 || isNaN(item.id)) return null;
+    
+    return item;
 };
 
-/**
- * Google Sheets'ten gelen veriyi okurken, metin (JSON) olarak kaydedilmiş
- * alanları tekrar JavaScript objesine/dizisine çevirir.
- */
 const parseDataFromSheet = (data: any) => {
-  if (!data) return data;
+  if (!data) return { customers: [], products: [], transactions: [], safes: [] };
 
-  // Müşteri bakiyelerini parse et
+  const parsedData: any = {
+      customers: [],
+      products: [],
+      transactions: [],
+      safes: []
+  };
+
+  // Müşteriler
   if (data.customers && Array.isArray(data.customers)) {
-    data.customers = data.customers.map((c: any) => ({
-      ...c,
-      id: Number(c.id),
-      balances: (typeof c.balances === 'string' && c.balances.startsWith('{')) 
-        ? JSON.parse(c.balances) 
-        : (c.balances || { TL: 0, USD: 0, EUR: 0 })
-    })).filter(isValidItem); 
+    parsedData.customers = data.customers.map(parseRow).filter((c: any) => c && c.name);
   }
 
-  // Kasa bakiyelerini parse et
+  // Kasalar
   if (data.safes && Array.isArray(data.safes)) {
-    data.safes = data.safes.map((s: any) => ({
-      ...s,
-      id: Number(s.id),
-      balances: (typeof s.balances === 'string' && s.balances.startsWith('{')) 
-        ? JSON.parse(s.balances) 
-        : (s.balances || { TL: 0, USD: 0, EUR: 0 })
-    })).filter(isValidItem);
+    parsedData.safes = data.safes.map(parseRow).filter((s: any) => s && s.name);
   }
 
-  // İşlem kalemlerini (items) parse et
+  // İşlemler
   if (data.transactions && Array.isArray(data.transactions)) {
-    data.transactions = data.transactions.map((t: any) => {
-      let items = t.items;
-
-      // JSON String parsing with safety check
-      if (typeof t.items === 'string') {
-          const trimmed = t.items.trim();
-          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-             try {
-                 items = JSON.parse(trimmed);
-             } catch(e) {
-                 items = [];
-             }
-          } else {
-             // If it's a string but not a JSON array (e.g. empty string), treat as undefined
-             items = undefined;
-          }
-      } else if (!Array.isArray(t.items)) {
-          // If it's neither string nor array (e.g. null, object), treat as undefined
-          items = undefined;
-      }
-
-      return {
-        ...t,
-        id: Number(t.id),
-        accId: t.accId ? Number(t.accId) : undefined,
-        safeId: t.safeId ? Number(t.safeId) : undefined,
-        linkedTransactionId: t.linkedTransactionId ? Number(t.linkedTransactionId) : undefined,
-        total: Number(t.total),
-        items: items
-      };
-    }).filter((t: any) => !isNaN(Number(t.id)) && Number(t.id) !== 0); 
+    parsedData.transactions = data.transactions.map(parseRow).filter((t: any) => t);
   }
 
-  // Ürün fiyatlarını sayıya çevir
+  // Ürünler
   if (data.products && Array.isArray(data.products)) {
-     data.products = data.products.map((p: any) => ({
-         ...p,
-         id: Number(p.id),
-         price: Number(p.price),
-         purchasePrice: Number(p.purchasePrice)
-     })).filter(isValidItem);
+     parsedData.products = data.products.map(parseRow).filter((p: any) => p && p.name);
   }
 
-  return data;
+  return parsedData;
 };
 
 export const api = {

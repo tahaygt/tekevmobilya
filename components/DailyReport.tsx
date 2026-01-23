@@ -129,10 +129,11 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   // --- PRINT FUNCTION ---
   const handlePrintSection = (sectionId: string) => {
       setPrintSection(sectionId);
+      // Increased timeout to ensure React renders the class changes before print dialog
       setTimeout(() => {
           window.print();
           setPrintSection(null);
-      }, 100);
+      }, 500);
   };
   
   // Determines if an element should be hidden during print
@@ -172,12 +173,13 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       </div>
 
       {/* Main Report Card */}
-      <div className={`bg-white border border-slate-200 rounded-3xl p-8 print:p-0 print:border-none shadow-xl print:shadow-none min-h-[600px] relative overflow-hidden ${isHidden('main-report')}`}>
-        {/* Decorative Background for Print */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-bl-full -z-10 opacity-50 print:opacity-100"></div>
+      {/* REMOVED isHidden('main-report') from parent wrapper to allow children to be visible when parent is printing */}
+      <div className={`bg-white border border-slate-200 rounded-3xl p-8 print:p-0 print:border-none shadow-xl print:shadow-none min-h-[600px] relative overflow-hidden`}>
+        {/* Decorative Background for Print - Hide when printing specific sections to keep it clean */}
+        <div className={`absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-bl-full -z-10 opacity-50 print:opacity-100 ${isHidden('bg-decor')}`}></div>
 
-        {/* Header */}
-        <div className="text-center mb-12">
+        {/* Header - Hide when printing specific sections if desired, or keep it. Let's hide it for specific lists to save ink/space */}
+        <div className={`text-center mb-12 ${isHidden('report-header')}`}>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">TEKDEMİR</h1>
             <div className={`text-xs font-bold uppercase tracking-[0.3em] ${panelMode === 'store' ? 'text-orange-500' : 'text-sky-500'}`}>
                 {panelMode === 'store' ? 'Mağaza Yönetimi' : 'Mobilya & Finans'}
