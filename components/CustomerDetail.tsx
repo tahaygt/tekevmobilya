@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Customer, Transaction, Safe, PaymentMethod } from '../types';
-import { ArrowLeft, ArrowRight, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft, FileDown, Link as LinkIcon, FileImage, X, User, CornerDownRight, Users, Plus, TrendingUp, TrendingDown, CreditCard } from 'lucide-react';
+import { Customer, Transaction, Safe, PaymentMethod, Product } from '../types';
+import { ArrowLeft, ArrowRight, Wallet, Edit2, Trash2, Calendar, FileText, Search, Printer, ArrowUpRight, ArrowDownLeft, FileDown, Link as LinkIcon, FileImage, X, User, CornerDownRight, Users, Plus, TrendingUp, TrendingDown, CreditCard, Box } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomerDetailProps {
@@ -9,6 +9,7 @@ interface CustomerDetailProps {
   allCustomers: Customer[];
   transactions: Transaction[];
   safes: Safe[];
+  products?: Product[];
   onBack: () => void;
   onPayment: (amount: number, type: 'in' | 'out', safeId: number, currency: 'TL'|'USD'|'EUR', method: PaymentMethod, desc: string, date: string, linkedTransactionId?: number) => void;
   onDeleteTransaction: (id: number) => void;
@@ -16,12 +17,12 @@ interface CustomerDetailProps {
   onSelectCustomer: (id: number) => void; 
   onAddCustomer: (data: Omit<Customer, 'id' | 'balances'>) => Promise<Customer>;
   onDeleteCustomer?: (id: number) => Promise<void>;
-  onEditCustomer?: (customer: Customer) => Promise<void>; // YENİ: Edit Function
+  onEditCustomer?: (customer: Customer) => Promise<void>;
   panelMode?: 'accounting' | 'store';
 }
 
 export const CustomerDetail: React.FC<CustomerDetailProps> = ({ 
-  customer, allCustomers, transactions, safes, onBack, onPayment, onDeleteTransaction, onEditTransaction, onSelectCustomer, onAddCustomer, onDeleteCustomer, onEditCustomer, panelMode
+  customer, allCustomers, transactions, safes, products, onBack, onPayment, onDeleteTransaction, onEditTransaction, onSelectCustomer, onAddCustomer, onDeleteCustomer, onEditCustomer, panelMode
 }) => {
   const [activeTab, setActiveTab] = useState<'transactions' | 'subcustomers'>('transactions');
   const [modalMode, setModalMode] = useState<'in' | 'out' | null>(null);
@@ -61,12 +62,33 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   // Determine if this is a sub-customer view
   const isSubCustomerView = Boolean(customer.parentId);
 
-  // İŞLEM HESAPLAMA VE SIRALAMA (ESKİDEN -> YENİYE)
+  // 1. GERÇEK BAKİYE HESAPLAMA (Tüm işlemlerden)
+  // Search filtresinden bağımsız olarak carinin toplam bakiyesini hesaplar.
+  const realBalances = useMemo(() => {
+      const bals = { TL: 0, USD: 0, EUR: 0 };
+      
+      // Bu cariye ait tüm işlemleri al
+      const allCustTrans = transactions.filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
+
+      allCustTrans.forEach(t => {
+          const isDebt = t.type === 'sales' || t.type === 'cash_out';
+          const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+          const curr = (t.currency || 'TL') as 'TL'|'USD'|'EUR';
+          
+          if (curr === 'TL' || curr === 'USD' || curr === 'EUR') {
+              if (isDebt) bals[curr] += t.total;
+              else if (isCredit) bals[curr] -= t.total;
+          }
+      });
+      return bals;
+  }, [transactions, relatedCustomerIds]);
+
+  // 2. İŞLEM HESAPLAMA VE SIRALAMA (ESKİDEN -> YENİYE)
   const processedTransactions = useMemo(() => {
-    // 1. İlgili cariye ait işlemleri filtrele
+    // A. İlgili cariye ait işlemleri filtrele
     let filtered = transactions.filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
     
-    // 2. Arama filtresi
+    // B. Arama filtresi
     if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         filtered = filtered.filter(t => 
@@ -77,29 +99,37 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
         );
     }
 
-    // 3. Tarihe göre ESKİDEN -> YENİYE sırala (En son işlem en altta)
+    // C. Tarihe göre ESKİDEN -> YENİYE sırala (En son işlem en altta)
     filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // 4. Kümülatif Bakiye Hesapla
+    // D. Kümülatif Bakiye Hesapla (Tablo satırları için)
     const runningBalances = { TL: 0, USD: 0, EUR: 0 };
     
     return filtered.map(t => {
-        const isDebt = t.type === 'sales' || t.type === 'cash_out';   // Borç (Müşteriye mal verdik veya para ödedik)
-        const isCredit = t.type === 'purchase' || t.type === 'cash_in'; // Alacak (Mal aldık veya para tahsil ettik)
+        const isDebt = t.type === 'sales' || t.type === 'cash_out';   // Borç
+        const isCredit = t.type === 'purchase' || t.type === 'cash_in'; // Alacak
+        const curr = (t.currency || 'TL') as 'TL'|'USD'|'EUR';
         
         let amount = t.total;
-        if (isDebt) runningBalances[t.currency] += amount;
-        else if (isCredit) runningBalances[t.currency] -= amount;
+        if (curr === 'TL' || curr === 'USD' || curr === 'EUR') {
+            if (isDebt) runningBalances[curr] += amount;
+            else if (isCredit) runningBalances[curr] -= amount;
+        }
         
         return { 
             ...t, 
-            snapshotBalance: runningBalances[t.currency] 
+            snapshotBalance: runningBalances[curr] || 0
         };
     });
   }, [transactions, relatedCustomerIds, searchTerm]);
 
-  // Son Bakiye (Listenin en sonundaki bakiye değil, carinin güncel bakiyesi)
-  // Ancak tabloda listenin son satırı o anki durumu gösterir.
+  const calculateCost = (items: any[]) => {
+      if(!items || !products) return 0;
+      return items.reduce((acc, item) => {
+          const product = products.find(p => p.name === item.name);
+          return acc + ((product?.purchasePrice || 0) * item.qty);
+      }, 0);
+  };
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +180,8 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   };
 
   const renderBalanceBox = (currency: 'TL' | 'USD' | 'EUR') => {
-     const bal = customer.balances[currency];
+     // GÜNCELLEME: Customer objesinden değil, hesaplanmış realBalances'dan alıyoruz.
+     const bal = realBalances[currency];
      const isPositive = bal > 0; // Borçlu
      const isNegative = bal < 0; // Alacaklı
 
@@ -284,6 +315,8 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                             {processedTransactions.map(t => {
                                 const isDebt = t.type === 'sales' || t.type === 'cash_out';
                                 const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                                const totalCost = t.type === 'sales' ? calculateCost(t.items || []) : 0;
+                                
                                 return (
                                     <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-8 py-4 font-mono text-slate-500 text-xs">{formatDate(t.date)}</td>
@@ -294,6 +327,13 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                 <button onClick={() => setViewingImage(t.deliveryNoteUrl || null)} className="mt-1 text-[10px] flex items-center text-blue-500 hover:underline no-print">
                                                     <FileImage size={10} className="mr-1"/> İrsaliye
                                                 </button>
+                                            )}
+                                            {/* MALİYET GÖSTERİMİ */}
+                                            {t.type === 'sales' && totalCost > 0 && (
+                                                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-50 border border-green-100 text-green-700 text-[10px] font-bold shadow-sm">
+                                                    <Box size={10} />
+                                                    Maliyet Toplamı: {totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {t.currency}
+                                                </div>
                                             )}
                                         </td>
                                         <td className="px-8 py-4 text-center">
@@ -319,16 +359,16 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                 </tr>
                             )}
                         </tbody>
-                        {/* TABLE FOOTER FOR FINAL BALANCE */}
+                        {/* TABLE FOOTER FOR FINAL BALANCE (GÜNCEL BAKİYE - RealBalances'dan) */}
                         <tfoot className="bg-slate-100 border-t border-slate-200">
                              <tr>
                                  <td colSpan={5} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
                                  <td className="px-8 py-4 text-right">
                                      <div className="flex flex-col items-end gap-1">
-                                         {customer.balances.TL !== 0 && <span className="font-mono font-black text-slate-800">{customer.balances.TL.toLocaleString()} TL</span>}
-                                         {customer.balances.USD !== 0 && <span className="font-mono font-black text-slate-800">{customer.balances.USD.toLocaleString()} USD</span>}
-                                         {customer.balances.EUR !== 0 && <span className="font-mono font-black text-slate-800">{customer.balances.EUR.toLocaleString()} EUR</span>}
-                                         {customer.balances.TL === 0 && customer.balances.USD === 0 && customer.balances.EUR === 0 && <span className="text-slate-400 font-mono text-xs">0.00</span>}
+                                         {realBalances.TL !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.TL.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>}
+                                         {realBalances.USD !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.USD.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} USD</span>}
+                                         {realBalances.EUR !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.EUR.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} EUR</span>}
+                                         {realBalances.TL === 0 && realBalances.USD === 0 && realBalances.EUR === 0 && <span className="text-slate-400 font-mono text-xs">0.00</span>}
                                      </div>
                                  </td>
                                  <td className="no-print"></td>
