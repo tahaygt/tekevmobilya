@@ -18,11 +18,21 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   const formatDate = (d: string) => d.split('-').reverse().join('.');
   const formatMoney = (amount: number, currency: string = 'TL') => `${amount.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currency}`;
 
+  // Geçerli Müşteri ID'lerini bir Set içinde tut (Hızlı erişim için)
+  const validCustomerIds = useMemo(() => new Set(customers.map(c => c.id)), [customers]);
+
   // -- DATA PROCESSING --
   const activeTransactions = useMemo(() => {
       let filtered = transactions || [];
+      
+      // 1. Filter by Panel Mode (Store vs Accounting)
       filtered = filtered.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
 
+      // 2. ÖNEMLİ DÜZELTME: Sadece geçerli (silinmemiş) müşterilere ait işlemleri dahil et.
+      // Bu sayede cari detayında görünmeyen (çünkü cari silinmiş veya hatalı) işlemler rapora yansımaz.
+      filtered = filtered.filter(t => t.accId && validCustomerIds.has(t.accId));
+
+      // 3. Filter by Date (Daily vs Monthly)
       if (activeTab === 'daily') {
           filtered = filtered.filter(t => t.date === selectedDate);
           // Günlük ana tabloda alış faturalarını gizle (aşağıda özel tablo var)
@@ -31,11 +41,12 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
           filtered = filtered.filter(t => t.date.startsWith(selectedMonth));
       }
 
+      // 4. Filter by Type (Sales/CashIn)
       if (filterType !== 'all') {
           filtered = filtered.filter(t => t.type === filterType);
       }
       return filtered;
-  }, [transactions, activeTab, selectedDate, selectedMonth, filterType, panelMode]);
+  }, [transactions, activeTab, selectedDate, selectedMonth, filterType, panelMode, validCustomerIds]);
   
   const distinctCustIds = Array.from(new Set(activeTransactions.map(t => t.accId))).filter(Boolean) as number[];
 
@@ -43,8 +54,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   const dailyPurchaseInvoices = useMemo(() => {
       if (activeTab !== 'daily') return [];
       const relevantTrans = (transactions || []).filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
-      return relevantTrans.filter(t => t.date === selectedDate && t.type === 'purchase');
-  }, [transactions, activeTab, selectedDate, panelMode]);
+      // Alış faturalarında da tedarikçi kontrolü yapalım
+      return relevantTrans.filter(t => t.date === selectedDate && t.type === 'purchase' && t.accId && validCustomerIds.has(t.accId));
+  }, [transactions, activeTab, selectedDate, panelMode, validCustomerIds]);
 
   // Aylık Ürün Satışları (Cari Bazlı Gruplama)
   const monthlyCustomerSales = useMemo(() => {
@@ -58,7 +70,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       sales.forEach(sale => {
           if(!sale.accId) return;
           const custId = Number(sale.accId);
-          const custName = sale.accName || 'Bilinmeyen Cari';
+          // Müşteri ismini customers array'inden al (Garanti olsun)
+          const customer = customers.find(c => c.id === custId);
+          const custName = customer ? customer.name : (sale.accName || 'Bilinmeyen Cari');
           
           if (!groupedByCustomer[custId]) {
               groupedByCustomer[custId] = { customerName: custName, items: [], total: 0 };
@@ -80,7 +94,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
       return Object.values(groupedByCustomer);
 
-  }, [activeTransactions, activeTab]);
+  }, [activeTransactions, activeTab, customers]);
 
   // --- SADECE MAĞAZA MODU: SATIŞ TEMSİLCİSİ PERFORMANSI ---
   const salesByRep = useMemo(() => {
@@ -105,7 +119,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
           }
       });
       
-      return Object.entries(grouped).map(([name, data]) => ({ name, ...data }));
+      return Object.entries(grouped)
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => b.total - a.total); // Tutara göre sırala
   }, [activeTransactions, panelMode]);
 
 
