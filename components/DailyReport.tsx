@@ -20,7 +20,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
   // -- DATA PROCESSING --
   const activeTransactions = useMemo(() => {
-      let filtered = transactions;
+      let filtered = transactions || [];
       filtered = filtered.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
 
       if (activeTab === 'daily') {
@@ -42,7 +42,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   // Günlük Alış Faturaları
   const dailyPurchaseInvoices = useMemo(() => {
       if (activeTab !== 'daily') return [];
-      const relevantTrans = transactions.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
+      const relevantTrans = (transactions || []).filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
       return relevantTrans.filter(t => t.date === selectedDate && t.type === 'purchase');
   }, [transactions, activeTab, selectedDate, panelMode]);
 

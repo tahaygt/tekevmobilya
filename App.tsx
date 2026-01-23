@@ -273,7 +273,7 @@ const App: React.FC = () => {
   // --- FILTERED DATA MEMO ---
   const filteredTransactions = useMemo(() => {
     if (!panelMode) return [];
-    return transactions.filter(t => {
+    return (transactions || []).filter(t => {
       if (panelMode === 'store') return t.section === 'store';
       return t.section === 'accounting' || !t.section;
     });
@@ -281,7 +281,7 @@ const App: React.FC = () => {
 
   const filteredCustomers = useMemo(() => {
     if (!panelMode) return [];
-    return customers.filter(c => {
+    return (customers || []).filter(c => {
        if (panelMode === 'store') return c.section === 'store';
        return c.section === 'accounting' || !c.section;
     });
@@ -458,10 +458,7 @@ const App: React.FC = () => {
 
     setSyncing(true);
 
-    // Transaction ID oluştur
     const newId = Date.now();
-
-    // 2. Create Base Transaction Object
     const baseTrans: Transaction = {
       id: newId,
       date, 
@@ -473,27 +470,19 @@ const App: React.FC = () => {
       items,
       desc,
       section: mode,
-      ...(retailDetails || {}), // Contains salesRep, retailName, etc.
-      // deliveryNoteUrl burada boş bırakılıyor, Script dolduracak.
+      ...(retailDetails || {}), 
       deliveryNoteUrl: "" 
     };
 
-    // V18 SCRIPT UYUMLULUĞU:
-    // Script 'data.fileData' bekliyor.
-    // Scriptin içindeki 'saveFileToDrive' fonksiyonu 'filePayload.fileData', 'filePayload.fileName' bekliyor.
-    // Ayrıca veriyi Google Apps Script'e gönderirken "fileData" objesi olarak paketlememiz gerekiyor.
-    
     const transactionPayload = {
         ...baseTrans,
         fileData: fileData ? {
-            fileName: `fatura_${newId}.jpg`, // Script fileName bekliyor
+            fileName: `fatura_${newId}.jpg`, 
             mimeType: fileData.type,
-            fileData: fileData.base64 // Script fileData bekliyor (base64 string)
+            fileData: fileData.base64 
         } : null
     };
 
-    // 3. Optimistic Update (Ekran donmasın diye localde gösteriyoruz)
-    // Localde base64 gösteriyoruz ki anında görünsün, sayfayı yenileyince link gelecek.
     setTransactions(prev => [...prev, {
         ...baseTrans,
         deliveryNoteUrl: fileData ? `data:${fileData.type};base64,${fileData.base64}` : undefined
@@ -506,15 +495,13 @@ const App: React.FC = () => {
     setCustomers(prev => prev.map(c => c.id === customerId ? updatedCustomer : c));
 
     try {
-        // 4. Send Data to Sheets API
         await api.create('transactions', transactionPayload, mode);
         await api.update('customers', updatedCustomer, mode);
-        
         setSuccessMessage('Fatura ve dosya başarıyla kaydedildi.');
         setActivePage('customers');
     } catch (error) {
         console.error("Fatura kaydetme hatası:", error);
-        alert("Fatura sunucuya kaydedilirken bir hata oluştu. Görsel boyutu çok büyük olabilir.");
+        alert("Fatura sunucuya kaydedilirken bir hata oluştu.");
     } finally {
         setSyncing(false);
     }
@@ -572,49 +559,65 @@ const App: React.FC = () => {
 
   const deleteTransaction = async (id: number) => {
       const mode = getMode();
+      
+      // Find the transaction BEFORE deleting it from state to handle balances
       const trans = transactions.find(t => t.id === id);
-      if(!trans) return;
+      
+      // OPTIMISTIC UPDATE: Remove from state immediately
+      // This ensures DailyReport and other views update instantly
+      setTransactions(prev => prev.filter(t => t.id !== id));
 
-      if(!window.confirm("Bu işlemi silmek istediğinize emin misiniz? Bakiyeler geri alınacak.")) return;
+      if (trans) {
+          const currency = trans.currency;
+          setSyncing(true);
 
-      const currency = trans.currency;
-      setSyncing(true);
+          // Update Customer Balance
+          if(trans.accId) {
+              const customer = customers.find(c => c.id === trans.accId);
+              if(customer) {
+                  let balanceChange = 0;
+                  // If we delete a transaction, we reverse its effect on balance
+                  if (trans.type === 'sales') balanceChange = -trans.total; // Delete Sales -> Decrease Debt
+                  else if (trans.type === 'purchase') balanceChange = trans.total; // Delete Purchase -> Increase Debt (reduce credit)
+                  else if (trans.type === 'cash_in') balanceChange = trans.total; // Delete Cash In -> Increase Debt
+                  else if (trans.type === 'cash_out') balanceChange = -trans.total; // Delete Cash Out -> Decrease Debt
+                  
+                  const updatedCustomer = { 
+                      ...customer, 
+                      balances: { 
+                          ...customer.balances, 
+                          [currency]: (customer.balances[currency] || 0) + balanceChange 
+                      } 
+                  };
+                  
+                  setCustomers(prev => prev.map(c => c.id === customer.id ? updatedCustomer : c));
+                  // Fire and forget API update for customer
+                  api.update('customers', updatedCustomer, mode);
+              }
+          }
 
-      // Revert states locally first...
-      // (State updates removed for brevity, assuming same logic as before)
-      if(trans.accId) {
-          const customer = customers.find(c => c.id === trans.accId);
-          if(customer) {
-              let balanceChange = 0;
-              if (trans.type === 'sales') balanceChange = -trans.total;
-              else if (trans.type === 'purchase') balanceChange = trans.total;
-              else if (trans.type === 'cash_in') balanceChange = trans.total; 
-              else if (trans.type === 'cash_out') balanceChange = -trans.total; 
-              
-              const updatedCustomer = { ...customer, balances: { ...customer.balances, [currency]: (customer.balances[currency]||0) + balanceChange } };
-              setCustomers(prev => prev.map(c => c.id === customer.id ? updatedCustomer : c));
-              // We trigger api update but don't await blocking UI too much here, handled in try/finally
-              api.update('customers', updatedCustomer, mode);
+          // Update Safe Balance
+          if(trans.safeId && (trans.type === 'cash_in' || trans.type === 'cash_out')) {
+               const safe = safes.find(s => s.id === trans.safeId);
+               if(safe) {
+                   const amount = trans.total;
+                   const isRevertIn = trans.type === 'cash_in'; 
+                   const currentBal = safe.balances[currency];
+                   const newBal = isRevertIn ? currentBal - amount : currentBal + amount;
+                   const updatedSafe = { ...safe, balances: { ...safe.balances, [currency]: newBal } };
+                   
+                   setSafes(prev => prev.map(s => s.id === safe.id ? updatedSafe : s));
+                   // Fire and forget API update for safe
+                   api.update('safes', updatedSafe, mode);
+               }
           }
       }
 
-      if(trans.safeId && (trans.type === 'cash_in' || trans.type === 'cash_out')) {
-           const safe = safes.find(s => s.id === trans.safeId);
-           if(safe) {
-               const amount = trans.total;
-               const isRevertIn = trans.type === 'cash_in'; 
-               const currentBal = safe.balances[currency];
-               const newBal = isRevertIn ? currentBal - amount : currentBal + amount;
-               const updatedSafe = { ...safe, balances: { ...safe.balances, [currency]: newBal } };
-               setSafes(prev => prev.map(s => s.id === safe.id ? updatedSafe : s));
-               api.update('safes', updatedSafe, mode);
-           }
-      }
-
-      setTransactions(prev => prev.filter(t => t.id !== id));
-      
       try {
         await api.delete('transactions', id, mode);
+      } catch(e) {
+        console.error("Delete failed on server", e);
+        // In a real app, you might want to revert state here or show an error
       } finally {
         setSyncing(false);
       }
@@ -622,14 +625,79 @@ const App: React.FC = () => {
 
   const handleEditTransaction = async (newTrans: Transaction) => {
       const mode = getMode();
-      const oldTrans = transactions.find(t => t.id === newTrans.id);
+      const oldTrans = (transactions || []).find(t => t.id === newTrans.id);
       if (!oldTrans) return;
-      
+
+      setSyncing(true);
+
+      // 1. REVERT OLD TRANSACTION EFFECT
+      // ---------------------------------
+      if (oldTrans.accId) {
+          const customer = customers.find(c => c.id === oldTrans.accId);
+          if (customer) {
+              let balanceChange = 0;
+              // İşlem silinmiş gibi bakiyeyi ters çevir
+              if (oldTrans.type === 'sales') balanceChange = -oldTrans.total;
+              else if (oldTrans.type === 'purchase') balanceChange = oldTrans.total;
+              else if (oldTrans.type === 'cash_in') balanceChange = oldTrans.total; // Tahsilat silinirse borç artar (+)
+              else if (oldTrans.type === 'cash_out') balanceChange = -oldTrans.total; // Ödeme silinirse borç azalır (-)
+
+              customer.balances[oldTrans.currency] = (customer.balances[oldTrans.currency] || 0) + balanceChange;
+          }
+      }
+
+      if (oldTrans.safeId && (oldTrans.type === 'cash_in' || oldTrans.type === 'cash_out')) {
+          const safe = safes.find(s => s.id === oldTrans.safeId);
+          if (safe) {
+              const amount = oldTrans.total;
+              // Kasa hareketini ters çevir
+              const isRevertIn = oldTrans.type === 'cash_in';
+              const newBal = isRevertIn ? (safe.balances[oldTrans.currency] - amount) : (safe.balances[oldTrans.currency] + amount);
+              safe.balances[oldTrans.currency] = newBal;
+          }
+      }
+
+      // 2. APPLY NEW TRANSACTION EFFECT
+      // ---------------------------------
+      if (newTrans.accId) {
+          const customer = customers.find(c => c.id === newTrans.accId); // Same customer obj ref (updated above)
+          if (customer) {
+              let balanceChange = 0;
+              if (newTrans.type === 'sales') balanceChange = newTrans.total; // Satış -> Borç Artar
+              else if (newTrans.type === 'purchase') balanceChange = -newTrans.total; // Alış -> Alacak Artar (Borç Azalır)
+              else if (newTrans.type === 'cash_in') balanceChange = -newTrans.total; // Tahsilat -> Borç Azalır
+              else if (newTrans.type === 'cash_out') balanceChange = newTrans.total; // Ödeme -> Borç Artar (veya Alacak Azalır)
+
+              customer.balances[newTrans.currency] = (customer.balances[newTrans.currency] || 0) + balanceChange;
+              
+              // Update Customer State & API
+              setCustomers(prev => [...prev]); // Trigger re-render with mutated objects
+              await api.update('customers', customer, mode);
+          }
+      }
+
+      if (newTrans.safeId && (newTrans.type === 'cash_in' || newTrans.type === 'cash_out')) {
+          const safe = safes.find(s => s.id === newTrans.safeId);
+          if (safe) {
+              const amount = newTrans.total;
+              const isNewIn = newTrans.type === 'cash_in';
+              const newBal = isNewIn ? (safe.balances[newTrans.currency] + amount) : (safe.balances[newTrans.currency] - amount);
+              safe.balances[newTrans.currency] = newBal;
+
+              // Update Safe State & API
+              setSafes(prev => [...prev]);
+              await api.update('safes', safe, mode);
+          }
+      }
+
+      // 3. UPDATE TRANSACTION
       setTransactions(prev => prev.map(t => t.id === newTrans.id ? newTrans : t));
       
       try {
-        setSyncing(true);
         await api.update('transactions', newTrans, mode);
+        setSuccessMessage('İşlem başarıyla güncellendi.');
+      } catch(e) {
+        alert("Güncelleme sırasında hata oluştu.");
       } finally {
         setSyncing(false);
       }
@@ -687,7 +755,7 @@ const App: React.FC = () => {
             onLogout={handleLogout}
         >
         {
-            activePage === 'customers' ? <Customers customers={customers} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} panelMode={panelMode} /> :
+            activePage === 'customers' ? <Customers customers={customers} transactions={filteredTransactions} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} panelMode={panelMode} /> :
             activePage === 'customer-detail' ? <CustomerDetail 
                 customer={customers.find(c => c.id === selectedCustId)!} 
                 allCustomers={customers} 
@@ -697,10 +765,10 @@ const App: React.FC = () => {
                 onPayment={processPayment} 
                 onDeleteTransaction={deleteTransaction} 
                 onEditTransaction={handleEditTransaction}
-                onSelectCustomer={handleCustomerSelect} // YENİ
-                onAddCustomer={addCustomer} // YENİ
-                onDeleteCustomer={deleteCustomer} // YENİ EKLENDİ (Alt Cari Silme İçin)
-                onEditCustomer={editCustomer} // YENİ: Edit Function eklendi
+                onSelectCustomer={handleCustomerSelect} 
+                onAddCustomer={addCustomer} 
+                onDeleteCustomer={deleteCustomer} 
+                onEditCustomer={editCustomer}
                 panelMode={panelMode}
             /> :
             activePage === 'products' ? <Products products={products} onAddProduct={addProduct} onEditProduct={editProduct} onDeleteProduct={deleteProduct} /> :

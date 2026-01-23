@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Customer, Product, TransactionItem, Transaction } from '../types';
-import { Save, Plus, Trash2, ShoppingCart, Calendar, Search, ArrowRight, Printer, Clock, User, Phone, MapPin, Truck, Store, UserPlus, Upload, FileImage, X, UserCheck, Receipt, Hash, FileUp, Check, Image as ImageIcon } from 'lucide-react';
+import { Save, Plus, Trash2, ShoppingCart, Calendar, Truck, Store, UserPlus, FileUp, Check, Image as ImageIcon, User, AlertCircle } from 'lucide-react';
 
 interface InvoiceBuilderProps {
   type: 'sales' | 'purchase';
@@ -52,16 +52,12 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   }, [type]);
 
   // Filter products
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = (products || []).filter(p => {
       const targetType = type === 'sales' ? 'satilan' : 'alinan';
       return p.type === targetType || p.type === 'both';
   });
 
-  const allCustomers = customers;
-  const recentInvoices = transactions
-    .filter(t => t.type === (type === 'sales' ? 'sales' : 'purchase'))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 10);
+  const allCustomers = customers || [];
 
   const handleQuickAddCustomer = async () => {
     if (!newCustName || !onAddCustomer) return;
@@ -179,8 +175,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   const handleSave = () => {
     const mainCustomer = type === 'sales' ? selectedRetailCust : selectedBranch;
     
-    // Muhasebe modunda şube seçimi zorunlu değil (selectedBranch pas geçilir)
-    // Ama müşteri seçimi zorunlu
     if (type === 'sales' && !selectedRetailCust) {
         alert("Lütfen bir müşteri seçiniz.");
         return;
@@ -190,7 +184,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         return;
     }
 
-    // Mağaza modunda Şube Zorunlu
     if (type === 'sales' && panelMode === 'store' && !selectedBranch) {
         alert("Lütfen satışı yapan şubeyi seçiniz.");
         return;
@@ -212,16 +205,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         deliveryDate,
         salesRep: panelMode === 'store' ? salesRep : undefined
     };
-
-    // Eğer muhasebe modundaysak ve satışsa, kaynak (branch) ID olmadığı için mainCustomer (RetailCust) kullanılır.
-    // Ancak onSave parametreleri (customerId, ...) şeklindedir.
-    // Satış faturasında borçlanan müşteridir (selectedRetailCust).
-    // Alış faturasında alacaklanan tedarikçidir (selectedBranch).
-    
-    // NOT: Accounting modunda Sales -> selectedRetailCust var. selectedBranch yok.
-    // onSave ilk parametresi: Transaction'un accId'si (Cari Hesap ID).
-    // Sales işleminde AccID = Müşteri
-    // Purchase işleminde AccID = Tedarikçi
     
     let targetAccountId: number;
     if (type === 'sales') {
@@ -231,16 +214,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     }
 
     onSave(targetAccountId, date, validItems, currency, desc, retailDetails, selectedFile || undefined);
-  };
-
-  const printInvoice = (t: Transaction) => {
-      if (!t.items || !t.accId) return;
-      const printWindow = window.open('', '', 'width=800,height=1000');
-      if (!printWindow) return;
-      const dateStr = t.date.split('-').reverse().join('.');
-      const html = `<html><head><title>Fatura Yazdır</title></head><body onload="window.print()">${t.accName} - ${dateStr}</body></html>`;
-      printWindow.document.write(html);
-      printWindow.document.close();
   };
 
   // --- STYLES ---
@@ -270,7 +243,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         {/* ROW 1: Source & Target */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
             
-            {/* Şube Seçimi (Sadece Mağaza Modunda veya Alış Faturasında Tedarikçi seçimi olarak görünür) */}
             {(panelMode === 'store' || type === 'purchase') && (
                 <div className="lg:col-span-4">
                     <label className={labelClass}>
@@ -293,7 +265,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 </div>
             )}
 
-            {/* Müşteri Seçimi */}
             {type === 'sales' && (
                 <div className={`${(panelMode === 'store' || type === 'purchase') ? 'lg:col-span-6' : 'lg:col-span-10'}`}>
                     <label className={`${labelClass} text-sky-500`}>MÜŞTERİ (BORÇLU HESABI)</label>
@@ -329,7 +300,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                 </div>
             )}
 
-            {/* Yeni Müşteri Butonu */}
             {type === 'sales' && !showQuickAdd && (
                 <div className="lg:col-span-2 flex items-end">
                     <button 
@@ -393,13 +363,14 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         )}
 
         {/* ITEMS TABLE */}
-        <div className="mb-8 overflow-x-auto rounded-xl border border-slate-200">
+        <div className="mb-8 rounded-xl border border-slate-200 bg-white overflow-hidden">
             <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px]">
                     <tr>
-                        <th className="px-4 py-3 w-12">#</th>
-                        <th className="px-4 py-3">Ürün / Hizmet</th>
-                        <th className="px-4 py-3 w-24">Miktar</th>
+                        <th className="px-4 py-3 w-10">#</th>
+                        <th className="px-4 py-3 w-[25%]">Ürün / Hizmet</th>
+                        <th className="px-4 py-3 w-[25%]">Açıklama (Renk, Kumaş vb.)</th>
+                        <th className="px-4 py-3 w-20">Miktar</th>
                         <th className="px-4 py-3 w-32">Birim Fiyat</th>
                         <th className="px-4 py-3 w-32 text-right">Toplam</th>
                         <th className="px-4 py-3 w-12"></th>
@@ -420,18 +391,21 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                                 <datalist id="products">
                                     {filteredProducts.map(p => <option key={p.id} value={p.name} />)}
                                 </datalist>
+                            </td>
+                            {/* AÇIKLAMA SÜTUNU (YENİ - Ayrı Sütun) */}
+                            <td className="px-4 py-3">
                                 <input 
                                     type="text"
-                                    className="w-full bg-transparent outline-none text-xs text-slate-500 mt-1 placeholder-slate-200"
-                                    placeholder="Açıklama (opsiyonel)"
+                                    className="w-full bg-slate-50/50 border border-transparent focus:border-slate-300 focus:bg-white rounded px-2 py-1.5 outline-none text-xs text-slate-600 placeholder-slate-300 transition-all"
+                                    placeholder="Örn: Gri Keten, Metal Ayak..."
                                     value={item.description || ''}
                                     onChange={e => updateItem(index, 'description', e.target.value)}
                                 />
                             </td>
                             <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
-                                    <input type="number" min="1" className="w-16 bg-slate-100 rounded-lg px-2 py-1 text-center font-bold outline-none" value={item.qty} onChange={e => updateItem(index, 'qty', parseFloat(e.target.value))} />
-                                    <span className="text-[10px] text-slate-400">{item.unit}</span>
+                                    <input type="number" min="1" className="w-full bg-slate-100 rounded-lg px-2 py-1 text-center font-bold outline-none" value={item.qty} onChange={e => updateItem(index, 'qty', parseFloat(e.target.value))} />
+                                    <span className="text-[10px] text-slate-400 hidden sm:inline">{item.unit}</span>
                                 </div>
                             </td>
                             <td className="px-4 py-3">
@@ -457,15 +431,15 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         {/* BOTTOM SECTION */}
         <div className="flex flex-col lg:flex-row gap-8">
             <div className="flex-1 space-y-4">
-                <label className={labelClass}>NOT / AÇIKLAMA</label>
+                <label className={labelClass}>GENEL NOT / FATURA AÇIKLAMASI</label>
                 <textarea 
                     className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-sky-500 h-32 resize-none" 
-                    placeholder="Fatura ile ilgili notlar..."
+                    placeholder="Bu alana tüm fatura için geçerli genel notlar girilebilir..."
                     value={desc}
                     onChange={e => setDesc(e.target.value)}
                 ></textarea>
 
-                {/* --- DOSYA YÜKLEME ALANI (GÜNCELLENMİŞ) --- */}
+                {/* --- DOSYA YÜKLEME ALANI --- */}
                 <div className="mt-4">
                     <label className={labelClass}>İRSALİYE / BELGE EKLE</label>
                     <input 

@@ -77,7 +77,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
   };
 
   // Filter Logic:
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = (products || []).filter(p => {
       const matchesTab = activeTab === 'satilan' 
         ? (p.type === 'satilan' || p.type === 'both') 
         : (p.type === 'alinan' || p.type === 'both');
@@ -95,8 +95,8 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
       csvContent += "ID;Ürün Adı;Tip;Kategori;Birim;Alış Fiyatı;Satış Fiyatı;Para Birimi\n";
       
       const exportList = activeTab === 'satilan' 
-        ? products.filter(p => p.type === 'satilan' || p.type === 'both')
-        : products.filter(p => p.type === 'alinan' || p.type === 'both');
+        ? (products || []).filter(p => p.type === 'satilan' || p.type === 'both')
+        : (products || []).filter(p => p.type === 'alinan' || p.type === 'both');
 
       exportList.forEach(p => {
           const typeStr = p.type === 'satilan' ? 'Satılan' : p.type === 'alinan' ? 'Alınan' : 'Her İkisi';

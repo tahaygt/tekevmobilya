@@ -52,7 +52,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   // Find Sub-Customers (Only in Store Mode)
   const subCustomers = useMemo(() => {
      if (!allCustomers || panelMode === 'accounting') return [];
-     return allCustomers.filter(c => Number(c.parentId) === Number(customer.id));
+     return (allCustomers || []).filter(c => Number(c.parentId) === Number(customer.id));
   }, [customer, allCustomers, panelMode]);
 
   const relatedCustomerIds = useMemo(() => {
@@ -68,7 +68,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   // 1. GERÇEK BAKİYE HESAPLAMA (Tüm işlemlerden)
   const realBalances = useMemo(() => {
       const bals = { TL: 0, USD: 0, EUR: 0 };
-      const allCustTrans = transactions.filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
+      const allCustTrans = (transactions || []).filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
 
       allCustTrans.forEach(t => {
           const isDebt = t.type === 'sales' || t.type === 'cash_out';
@@ -85,7 +85,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
   // 2. İŞLEM HESAPLAMA VE SIRALAMA (ESKİDEN -> YENİYE)
   const processedTransactions = useMemo(() => {
-    let filtered = transactions.filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
+    let filtered = (transactions || []).filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
     
     if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
@@ -324,13 +324,14 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-100 print:bg-gray-100">
                             <tr>
-                                <th className="px-8 py-4 w-32">Tarih</th>
-                                <th className="px-8 py-4">Açıklama / Ürünler / Temsilci</th>
-                                <th className="px-8 py-4 text-center w-32">Tür</th>
-                                <th className="px-8 py-4 text-right w-32">Borç</th>
-                                <th className="px-8 py-4 text-right w-32">Alacak</th>
-                                <th className="px-8 py-4 text-right w-32 bg-slate-100/50">Bakiye</th>
-                                <th className="px-8 py-4 text-center w-24 no-print">İşlem</th>
+                                <th className="px-6 py-4 w-28">Tarih</th>
+                                <th className="px-6 py-4">İşlem Detayı / Ürünler</th>
+                                <th className="px-6 py-4 w-64">Açıklama</th>
+                                <th className="px-6 py-4 text-center w-28">Tür</th>
+                                <th className="px-6 py-4 text-right w-28">Borç</th>
+                                <th className="px-6 py-4 text-right w-28">Alacak</th>
+                                <th className="px-6 py-4 text-right w-28 bg-slate-100/50">Bakiye</th>
+                                <th className="px-6 py-4 text-center w-20 no-print">İşlem</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -339,12 +340,28 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                 const isCredit = t.type === 'purchase' || t.type === 'cash_in';
                                 const totalCost = t.type === 'sales' ? calculateCost(t.items || []) : 0;
                                 
+                                // AÇIKLAMA MANTIĞI: Ana açıklama yoksa, item açıklamalarını birleştir
+                                let displayDesc = t.desc;
+                                if (!displayDesc && t.items && t.items.length > 0) {
+                                    const itemDescs = t.items.map(i => i.description).filter(Boolean);
+                                    if (itemDescs.length > 0) {
+                                        displayDesc = itemDescs.join(', ');
+                                    }
+                                }
+
                                 return (
                                     <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-4 font-mono text-slate-500 text-xs">{formatDate(t.date)}</td>
-                                        <td className="px-8 py-4">
-                                            <div className="font-bold text-slate-700">{t.desc || (t.items ? 'Fatura' : 'İşlem')}</div>
-                                            <div className="text-xs text-slate-400 truncate max-w-[300px]">{t.items?.map(i => i.name).join(', ')}</div>
+                                        <td className="px-6 py-4 font-mono text-slate-500 text-xs">{formatDate(t.date)}</td>
+                                        <td className="px-6 py-4">
+                                            {/* İşlem Başlığı */}
+                                            <div className="font-bold text-slate-700">
+                                                {t.items ? 'Fatura' : 'Nakit İşlem'}
+                                                {/* Teslim Alan / Perakende Adı */}
+                                                {panelMode === 'store' && t.retailName && (
+                                                    <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-slate-400 truncate max-w-[250px]">{t.items?.map(i => i.name).join(', ')}</div>
                                             
                                             {/* Satış Temsilcisi (Sadece Mağaza Modunda) */}
                                             {panelMode === 'store' && t.salesRep && (
@@ -366,7 +383,17 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-8 py-4 text-center">
+                                        
+                                        {/* AÇIKLAMA SÜTUNU (GÜNCELLENDİ) */}
+                                        <td className="px-6 py-4 text-xs text-slate-600 font-medium align-top">
+                                            {displayDesc ? (
+                                                <div className="line-clamp-2" title={displayDesc}>{displayDesc}</div>
+                                            ) : (
+                                                <span className="text-slate-300 text-[10px] italic">-</span>
+                                            )}
+                                        </td>
+
+                                        <td className="px-6 py-4 text-center">
                                             <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold border print:border-none print:px-0
                                                 ${t.type === 'sales' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
                                                   t.type === 'purchase' ? 'bg-orange-50 text-orange-600 border-orange-100' :
@@ -374,10 +401,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                 {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
                                             </span>
                                         </td>
-                                        <td className="px-8 py-4 text-right font-mono font-bold text-red-600 text-xs">{isDebt ? t.total.toLocaleString() : '-'}</td>
-                                        <td className="px-8 py-4 text-right font-mono font-bold text-green-600 text-xs">{isCredit ? t.total.toLocaleString() : '-'}</td>
-                                        <td className="px-8 py-4 text-right font-mono font-bold text-slate-800 text-xs bg-slate-50/50">{(t as any).snapshotBalance.toLocaleString()} {t.currency}</td>
-                                        <td className="px-8 py-4 text-center no-print">
+                                        <td className="px-6 py-4 text-right font-mono font-bold text-red-600 text-xs">{isDebt ? t.total.toLocaleString() : '-'}</td>
+                                        <td className="px-6 py-4 text-right font-mono font-bold text-green-600 text-xs">{isCredit ? t.total.toLocaleString() : '-'}</td>
+                                        <td className="px-6 py-4 text-right font-mono font-bold text-slate-800 text-xs bg-slate-50/50">{(t as any).snapshotBalance.toLocaleString()} {t.currency}</td>
+                                        <td className="px-6 py-4 text-center no-print">
                                             <div className="flex items-center justify-center gap-1">
                                                 <button onClick={() => handleStartEditTransaction(t)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors" title="Düzenle"><Edit2 size={14}/></button>
                                                 <button onClick={() => setDeleteId(t.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sil"><Trash2 size={14}/></button>
@@ -388,13 +415,13 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                             })}
                             {processedTransactions.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">Bu cariye ait kayıtlı hareket bulunamadı.</td>
+                                    <td colSpan={8} className="text-center py-12 text-slate-400 font-medium">Bu cariye ait kayıtlı hareket bulunamadı.</td>
                                 </tr>
                             )}
                         </tbody>
                         <tfoot className="bg-slate-100 border-t border-slate-200">
                              <tr>
-                                 <td colSpan={5} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
+                                 <td colSpan={6} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
                                  <td className="px-8 py-4 text-right">
                                      <div className="flex flex-col items-end gap-1">
                                          {realBalances.TL !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.TL.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>}

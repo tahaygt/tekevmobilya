@@ -273,7 +273,7 @@ const App: React.FC = () => {
   // --- FILTERED DATA MEMO ---
   const filteredTransactions = useMemo(() => {
     if (!panelMode) return [];
-    return transactions.filter(t => {
+    return (transactions || []).filter(t => {
       if (panelMode === 'store') return t.section === 'store';
       return t.section === 'accounting' || !t.section;
     });
@@ -281,7 +281,7 @@ const App: React.FC = () => {
 
   const filteredCustomers = useMemo(() => {
     if (!panelMode) return [];
-    return customers.filter(c => {
+    return (customers || []).filter(c => {
        if (panelMode === 'store') return c.section === 'store';
        return c.section === 'accounting' || !c.section;
     });
@@ -559,10 +559,11 @@ const App: React.FC = () => {
 
   const deleteTransaction = async (id: number) => {
       const mode = getMode();
-      const trans = transactions.find(t => t.id === id);
+      const trans = (transactions || []).find(t => t.id === id);
       if(!trans) return;
 
-      if(!window.confirm("Bu işlemi silmek istediğinize emin misiniz? Bakiyeler geri alınacak.")) return;
+      // REMOVED WINDOW.CONFIRM to avoid double confirmation
+      // The ConfirmationModal in CustomerDetail handles the user prompt.
 
       const currency = trans.currency;
       setSyncing(true);
@@ -606,7 +607,7 @@ const App: React.FC = () => {
 
   const handleEditTransaction = async (newTrans: Transaction) => {
       const mode = getMode();
-      const oldTrans = transactions.find(t => t.id === newTrans.id);
+      const oldTrans = (transactions || []).find(t => t.id === newTrans.id);
       if (!oldTrans) return;
 
       setSyncing(true);
@@ -736,7 +737,7 @@ const App: React.FC = () => {
             onLogout={handleLogout}
         >
         {
-            activePage === 'customers' ? <Customers customers={customers} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} panelMode={panelMode} /> :
+            activePage === 'customers' ? <Customers customers={customers} transactions={filteredTransactions} onAddCustomer={addCustomer} onEditCustomer={editCustomer} onDeleteCustomer={deleteCustomer} onSelectCustomer={handleCustomerSelect} panelMode={panelMode} /> :
             activePage === 'customer-detail' ? <CustomerDetail 
                 customer={customers.find(c => c.id === selectedCustId)!} 
                 allCustomers={customers} 

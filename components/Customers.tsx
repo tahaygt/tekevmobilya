@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
-import { Customer } from '../types';
+import { Customer, Transaction } from '../types';
 import { Search, Plus, ArrowRight, Edit2, Trash2, Phone, MapPin, User, Building, Truck, Store, Smartphone, ChevronDown, ChevronRight, CornerDownRight } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CustomersProps {
   customers: Customer[];
+  transactions: Transaction[]; // YENİ: Bakiyeyi dinamik hesaplamak için
   onAddCustomer: (customer: Omit<Customer, 'id' | 'balances'>) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (id: number) => void;
@@ -14,7 +15,7 @@ interface CustomersProps {
 }
 
 export const Customers: React.FC<CustomersProps> = ({ 
-  customers, onAddCustomer, onEditCustomer, onDeleteCustomer, onSelectCustomer, panelMode
+  customers, transactions, onAddCustomer, onEditCustomer, onDeleteCustomer, onSelectCustomer, panelMode
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -66,11 +67,9 @@ export const Customers: React.FC<CustomersProps> = ({
   };
 
   // Filter customers by SECTION
-  const relevantCustomers = customers.filter(c => (c.section === panelMode || (!c.section && panelMode === 'accounting')));
+  const relevantCustomers = (customers || []).filter(c => (c.section === panelMode || (!c.section && panelMode === 'accounting')));
   
   // MAĞAZA MODU DEĞİŞİKLİĞİ: Sadece Ana Carileri (Root) göster. Alt cariler detayda gösterilecek.
-  // Muhasebe modunda hepsini gösterebiliriz veya orada da hiyerarşi varsa sadece rootları.
-  // Şimdilik sadece mağaza modu için "sadece root" filtresi uyguluyoruz.
   const displayCustomers = panelMode === 'store' 
       ? relevantCustomers.filter(c => !c.parentId) 
       : relevantCustomers;
@@ -80,19 +79,47 @@ export const Customers: React.FC<CustomersProps> = ({
       ? displayCustomers.filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()))
       : displayCustomers;
 
+  // --- BAKİYE HESAPLAMA (DİNAMİK) ---
+  const calculateRealBalance = (c: Customer) => {
+      // Muhasebe modunda kayıtlı bakiyeyi kullan
+      if (panelMode === 'accounting') return c.balances;
+
+      // Mağaza modunda işlemleri topla (Şube + Alt Cariler)
+      const subIds = relevantCustomers.filter(sub => sub.parentId === c.id).map(sub => sub.id);
+      const allIds = [c.id, ...subIds];
+      
+      const bals = { TL: 0, USD: 0, EUR: 0 };
+      const custTrans = (transactions || []).filter(t => t.accId && allIds.includes(t.accId));
+
+      custTrans.forEach(t => {
+          const isDebt = t.type === 'sales' || t.type === 'cash_out';
+          const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+          const curr = (t.currency || 'TL') as 'TL'|'USD'|'EUR';
+          
+          if (curr === 'TL' || curr === 'USD' || curr === 'EUR') {
+              if (isDebt) bals[curr] += t.total;
+              else if (isCredit) bals[curr] -= t.total;
+          }
+      });
+
+      return bals;
+  };
+
   const formatBalance = (amount: number, curr: string) => {
       if(amount === 0) return null;
       const label = amount > 0 ? '(Borçlu)' : '(Alacaklı)';
       return (
         <div key={curr} className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md flex items-center justify-end gap-1 ${amount > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-            <span>{amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {curr}</span>
+            <span>{Math.abs(amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {curr}</span>
             <span className="text-[9px] opacity-70 uppercase tracking-tight">{label}</span>
         </div>
       );
   };
 
   const renderCustomerRow = (c: Customer) => {
-      const hasBalance = c.balances.TL !== 0 || c.balances.USD !== 0 || c.balances.EUR !== 0;
+      // Mağaza modunda dinamik hesapla, muhasebede statik kullan
+      const balance = calculateRealBalance(c);
+      const hasBalance = balance.TL !== 0 || balance.USD !== 0 || balance.EUR !== 0;
       
       // Calculate Sub-Customer Count (Store Mode Only)
       const subCount = panelMode === 'store' ? relevantCustomers.filter(sc => sc.parentId === c.id).length : 0;
@@ -144,9 +171,9 @@ export const Customers: React.FC<CustomersProps> = ({
             <div className="flex flex-col items-end gap-1.5">
                 {hasBalance ? (
                     <>
-                        {formatBalance(c.balances.TL, 'TL')}
-                        {formatBalance(c.balances.USD, 'USD')}
-                        {formatBalance(c.balances.EUR, 'EUR')}
+                        {formatBalance(balance.TL, 'TL')}
+                        {formatBalance(balance.USD, 'USD')}
+                        {formatBalance(balance.EUR, 'EUR')}
                     </>
                 ) : (
                     <span className="text-slate-400 text-xs font-medium">Bakiye Yok</span>

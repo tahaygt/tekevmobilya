@@ -22,7 +22,7 @@ export const Cash: React.FC<CashProps> = ({ safes, transactions, onAddSafe, onEd
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const cashTransactions = useMemo(() => {
-    return transactions
+    return (transactions || [])
       .filter(t => t.type === 'cash_in' || t.type === 'cash_out')
       .filter(t => {
            // Search Logic
