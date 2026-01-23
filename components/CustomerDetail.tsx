@@ -66,7 +66,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const isSubCustomerView = Boolean(customer.parentId);
 
   // 1. GERÇEK BAKİYE HESAPLAMA (Tüm işlemlerden)
-  const realBalances = useMemo(() => {
+  const realBalances = useMemo<{ TL: number; USD: number; EUR: number }>(() => {
       const bals = { TL: 0, USD: 0, EUR: 0 };
       const allCustTrans = (transactions || []).filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
 
@@ -94,6 +94,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             t.total.toString().includes(searchLower) ||
             t.items?.some(i => (i.name || '').toLowerCase().includes(searchLower)) ||
             (t.retailName || '').toLowerCase().includes(searchLower) ||
+            (t.invoiceNo || '').toLowerCase().includes(searchLower) ||
             (t.salesRep || '').toLowerCase().includes(searchLower)
         );
     }
@@ -205,7 +206,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   };
 
   const renderBalanceBox = (currency: 'TL' | 'USD' | 'EUR') => {
-     const bal = realBalances[currency];
+     const bal = realBalances[currency] as number;
      const isPositive = bal > 0; // Borçlu
      const isNegative = bal < 0; // Alacaklı
 
@@ -222,13 +223,32 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     )}
                 </div>
                 <div className={`text-3xl font-black font-mono tracking-tighter mb-1 ${isPositive ? 'text-red-600' : isNegative ? 'text-green-600' : 'text-slate-400'} print:text-black`}>
-                    {(Math.abs(bal) as any).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    {Math.abs(bal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                     {isPositive ? 'Müşteri Borçlu' : isNegative ? 'Müşteri Alacaklı' : 'Bakiye Yok'}
                 </div>
             </div>
         </div>
+      );
+  };
+
+  // Helper to render footer total with label
+  const renderFooterTotal = (amount: number, currency: string) => {
+      if (amount === 0) return null;
+      const isDebt = amount > 0;
+      const label = isDebt ? 'Borçlu' : 'Alacaklı';
+      const color = isDebt ? 'text-red-600' : 'text-green-600';
+      
+      return (
+          <div className={`flex flex-col items-end ${color}`}>
+              <div className="flex items-baseline gap-2">
+                  <span className="font-mono font-black text-sm md:text-base">
+                      {Math.abs(amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {currency}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase bg-white/50 px-1 rounded border border-current opacity-80">{label}</span>
+              </div>
+          </div>
       );
   };
 
@@ -276,6 +296,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 <thead>
                     <tr className="border-b-2 border-slate-800">
                         <th className="py-2 font-bold text-slate-900">TARİH</th>
+                        <th className="py-2 font-bold text-slate-900">FATURA NO</th>
                         <th className="py-2 font-bold text-slate-900">İŞLEM TÜRÜ</th>
                         <th className="py-2 font-bold text-slate-900">AÇIKLAMA / ÜRÜNLER</th>
                         <th className="py-2 text-right font-bold text-slate-900">BORÇ</th>
@@ -287,9 +308,13 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     {processedTransactions.map((t, idx) => {
                         const isDebt = t.type === 'sales' || t.type === 'cash_out';
                         const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                        const snapBal = (t as any).snapshotBalance;
+                        const snapLabel = snapBal > 0 ? 'Borçlu' : snapBal < 0 ? 'Alacaklı' : '-';
+                        
                         return (
                             <tr key={idx}>
                                 <td className="py-2 text-slate-600 font-mono">{formatDate(t.date)}</td>
+                                <td className="py-2 text-slate-600 font-mono">{t.invoiceNo || '-'}</td>
                                 <td className="py-2 text-slate-800 font-bold uppercase">
                                     {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
                                 </td>
@@ -299,7 +324,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                 </td>
                                 <td className="py-2 text-right font-mono text-slate-800">{isDebt ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
                                 <td className="py-2 text-right font-mono text-slate-800">{isCredit ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
-                                <td className="py-2 text-right font-mono font-bold text-slate-900">{(t as any).snapshotBalance.toLocaleString('tr-TR', {minimumFractionDigits:2})} {t.currency}</td>
+                                <td className="py-2 text-right font-mono font-bold text-slate-900">
+                                    <div>{Math.abs(snapBal).toLocaleString('tr-TR', {minimumFractionDigits:2})} {t.currency}</div>
+                                    <div className="text-[9px] uppercase font-normal text-slate-500">{snapLabel}</div>
+                                </td>
                             </tr>
                         )
                     })}
@@ -310,11 +338,16 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
           <div className="flex justify-end mb-16">
               <div className="w-64">
                   {Object.entries(realBalances).map(([curr, val]) => {
-                      if (val === 0) return null;
+                      const amount = val as number;
+                      if (amount === 0) return null;
+                      const label = amount > 0 ? 'Borçlu' : 'Alacaklı';
                       return (
                           <div key={curr} className="flex justify-between items-center border-b border-slate-200 py-2">
                               <span className="font-bold text-slate-600">{curr} Genel Toplam</span>
-                              <span className="font-black text-xl text-slate-900">{(val as any).toLocaleString('tr-TR', {minimumFractionDigits:2})}</span>
+                              <div className="text-right">
+                                  <div className="font-black text-xl text-slate-900">{Math.abs(amount).toLocaleString('tr-TR', {minimumFractionDigits:2})}</div>
+                                  <div className="text-[10px] uppercase font-bold">{label}</div>
+                              </div>
                           </div>
                       )
                   })}
@@ -380,7 +413,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     <button onClick={() => { setEditFormData(customer); setIsEditingCustomer(true); }} className="bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
                         <Edit2 size={18} className="mr-2"/> Cari Düzenle
                     </button>
-                    <button onClick={handlePrint} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
+                    <button onClick={handlePrint} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-xl font-bold transition-all flex items-center shadow-lg active:scale-95">
                         <Printer size={18} className="mr-2"/> Yazdır
                     </button>
                     <button onClick={() => setModalMode('in')} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center">
@@ -445,6 +478,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                             displayDesc = itemDescs.join(', ');
                                         }
                                     }
+                                    
+                                    const snapBal = (t as any).snapshotBalance;
+                                    const snapLabel = snapBal > 0 ? 'Borçlu' : snapBal < 0 ? 'Alacaklı' : '-';
+                                    const snapColor = snapBal > 0 ? 'text-red-600' : snapBal < 0 ? 'text-green-600' : 'text-slate-400';
 
                                     return (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -453,6 +490,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                 {/* İşlem Başlığı */}
                                                 <div className="font-bold text-slate-700">
                                                     {t.items ? 'Fatura' : 'Nakit İşlem'}
+                                                    {t.invoiceNo && <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">#{t.invoiceNo}</span>}
                                                     {/* Teslim Alan / Perakende Adı */}
                                                     {panelMode === 'store' && t.retailName && (
                                                         <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
@@ -500,7 +538,12 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                             </td>
                                             <td className="px-6 py-4 text-right font-mono font-bold text-red-600 text-xs">{isDebt ? t.total.toLocaleString() : '-'}</td>
                                             <td className="px-6 py-4 text-right font-mono font-bold text-green-600 text-xs">{isCredit ? t.total.toLocaleString() : '-'}</td>
-                                            <td className="px-6 py-4 text-right font-mono font-bold text-slate-800 text-xs bg-slate-50/50">{(t as any).snapshotBalance.toLocaleString()} {t.currency}</td>
+                                            <td className={`px-6 py-4 text-right font-mono bg-slate-50/50 ${snapColor}`}>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-bold text-xs">{Math.abs(snapBal).toLocaleString()} {t.currency}</span>
+                                                    <span className="text-[9px] font-bold uppercase opacity-80">{snapLabel}</span>
+                                                </div>
+                                            </td>
                                             <td className="px-6 py-4 text-center no-print">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <button onClick={() => handleStartEditTransaction(t)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors" title="Düzenle"><Edit2 size={14}/></button>
@@ -520,10 +563,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                 <tr>
                                     <td colSpan={6} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
                                     <td className="px-8 py-4 text-right">
-                                        <div className="flex flex-col items-end gap-1">
-                                            {realBalances.TL !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.TL.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>}
-                                            {realBalances.USD !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.USD.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} USD</span>}
-                                            {realBalances.EUR !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.EUR.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} EUR</span>}
+                                        <div className="flex flex-col items-end gap-2">
+                                            {renderFooterTotal(realBalances.TL, 'TL')}
+                                            {renderFooterTotal(realBalances.USD, 'USD')}
+                                            {renderFooterTotal(realBalances.EUR, 'EUR')}
                                             {realBalances.TL === 0 && realBalances.USD === 0 && realBalances.EUR === 0 && <span className="text-slate-400 font-mono text-xs">0.00</span>}
                                         </div>
                                     </td>
@@ -601,6 +644,12 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                            </div>
                        </div>
                        
+                       {/* Fatura No Düzenleme */}
+                        <div>
+                             <label className="text-[10px] font-bold text-slate-500 uppercase">Fatura No</label>
+                             <input type="text" className="w-full border border-slate-200 rounded-lg p-2.5" value={editingTransaction.invoiceNo || ''} onChange={e => setEditingTransaction({...editingTransaction, invoiceNo: e.target.value})} />
+                        </div>
+
                        {panelMode === 'store' && (
                            <div>
                                <label className="text-[10px] font-bold text-slate-500 uppercase">Satış Temsilcisi</label>

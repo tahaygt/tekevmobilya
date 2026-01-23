@@ -448,7 +448,7 @@ const App: React.FC = () => {
       }
   };
 
-  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => {
+  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, invoiceNo: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => {
     const mode = getMode();
     const total = items.reduce((sum, item) => sum + item.total, 0);
     const type = activePage === 'invoice-sales' ? 'sales' : 'purchase';
@@ -469,6 +469,7 @@ const App: React.FC = () => {
       total, 
       items,
       desc,
+      invoiceNo: invoiceNo || undefined, // YENİ: Manuel Fatura No
       section: mode,
       ...(retailDetails || {}), 
       deliveryNoteUrl: "" 

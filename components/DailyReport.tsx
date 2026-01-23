@@ -168,7 +168,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                 <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none bg-white" />
             )}
              
-            <button onClick={() => window.print()} className="bg-slate-800 text-white p-2.5 rounded-xl hover:bg-slate-700 transition-colors"><Printer size={16}/></button>
+            <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl transition-all shadow-lg active:scale-95 flex items-center font-bold text-xs gap-2">
+                <Printer size={16}/> Yazdır
+            </button>
          </div>
       </div>
 
@@ -228,6 +230,8 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                             <div className="col-span-2 text-slate-400 font-mono">{t.date.split('-').reverse().join('.')}</div>
                                             <div className="col-span-4 font-bold text-slate-700">
                                                 {t.items?.map(i => i.name).join(', ') || t.desc}
+                                                {t.invoiceNo && <span className="ml-2 text-blue-500 font-mono">#{t.invoiceNo}</span>}
+                                                
                                                 {/* MAĞAZA MODU: SATIŞ TEMSİLCİSİ */}
                                                 {panelMode === 'store' && t.salesRep && (
                                                     <div className="text-[9px] text-orange-600 uppercase font-bold mt-0.5 flex items-center gap-1">
@@ -275,7 +279,10 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                         {dailyPurchaseInvoices.map(t => (
                             <div key={t.id} className="p-4 flex justify-between items-center text-xs">
                                 <div>
-                                    <div className="font-bold text-slate-700">{t.accName}</div>
+                                    <div className="font-bold text-slate-700 flex items-center gap-2">
+                                        {t.accName}
+                                        {t.invoiceNo && <span className="font-mono text-slate-400">#{t.invoiceNo}</span>}
+                                    </div>
                                     <div className="text-slate-400 mt-0.5">{t.items?.map(i=>i.name).join(', ')}</div>
                                 </div>
                                 <div className="font-mono font-bold text-red-600">{formatMoney(t.total, t.currency)}</div>

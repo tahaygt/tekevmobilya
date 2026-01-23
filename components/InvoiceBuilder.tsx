@@ -8,7 +8,7 @@ interface InvoiceBuilderProps {
   customers: Customer[];
   products: Product[];
   transactions: Transaction[];
-  onSave: (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => void;
+  onSave: (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, invoiceNo: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => void;
   panelMode?: 'accounting' | 'store';
   onAddCustomer?: (customer: Omit<Customer, 'id' | 'balances'>) => Promise<Customer>;
 }
@@ -17,6 +17,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
   const [selectedBranch, setSelectedBranch] = useState<number | ''>(''); 
   const [selectedRetailCust, setSelectedRetailCust] = useState<number | ''>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceNo, setInvoiceNo] = useState(''); // YENİ: Manuel Fatura No
   const [currency, setCurrency] = useState<'TL' | 'USD' | 'EUR'>('TL');
   const [desc, setDesc] = useState('');
   const [items, setItems] = useState<TransactionItem[]>([
@@ -45,6 +46,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     setSelectedRetailCust('');
     setCurrency('TL');
     setDesc('');
+    setInvoiceNo('');
     setDeliveryDate('');
     setRetailAddress('');
     setSalesRep('');
@@ -213,7 +215,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         targetAccountId = Number(selectedBranch);
     }
 
-    onSave(targetAccountId, date, validItems, currency, desc, retailDetails, selectedFile || undefined);
+    onSave(targetAccountId, date, validItems, currency, desc, invoiceNo, retailDetails, selectedFile || undefined);
   };
 
   // --- STYLES ---
@@ -234,9 +236,15 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                     {type === 'sales' ? 'Satış Faturası Oluştur' : 'Alış Faturası Oluştur'}
                 </h2>
             </div>
-            <div className="text-right opacity-40">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">FATURA NO</div>
-                <div className="text-2xl font-black font-mono text-slate-400">OTOMATİK</div>
+            <div className="text-right">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">FATURA NO</div>
+                <input 
+                    type="text" 
+                    className="text-2xl font-black font-mono text-slate-800 text-right bg-transparent border-b border-slate-200 focus:border-slate-800 outline-none w-40 placeholder-slate-300"
+                    placeholder="Giriniz..."
+                    value={invoiceNo}
+                    onChange={(e) => setInvoiceNo(e.target.value)}
+                />
             </div>
         </div>
 

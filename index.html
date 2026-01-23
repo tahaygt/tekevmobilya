@@ -28,11 +28,45 @@
     </script>
     <style>
       @media print {
+        @page { margin: 0.5cm; size: auto; }
+        
         .no-print { display: none !important; }
         .print-only { display: block !important; }
-        body { background: white; -webkit-print-color-adjust: exact; }
-        .page-break { page-break-before: always; }
+        
+        /* Aggressive reset for SPA layout containers to allow scrolling content to print */
+        html, body, #root, main, #main-content-scroll {
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          overflow-y: visible !important;
+          position: static !important;
+          display: block !important; /* Critical: Flexbox often clips print content */
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+        
+        /* Remove specific container constraints */
+        .max-w-7xl {
+          max-width: none !important;
+        }
+
+        body { 
+          -webkit-print-color-adjust: exact; 
+          print-color-adjust: exact; 
+          font-size: 12px;
+        }
+        
+        /* Ensure tables break correctly */
+        tr { page-break-inside: avoid; }
+        thead { display: table-header-group; }
+        
+        /* Hide scrollbars */
+        ::-webkit-scrollbar { display: none; }
       }
+      
       /* Custom scrollbar for webkit */
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }

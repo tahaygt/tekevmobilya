@@ -155,7 +155,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
         </header>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-scroll p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible custom-scrollbar relative z-0">
+        {/* Added id="main-content-scroll" to help global print styles reset height/overflow specifically on this container */}
+        <div id="main-content-scroll" className="flex-1 overflow-y-scroll p-4 sm:p-6 lg:p-8 print:p-0 custom-scrollbar relative z-0">
           <div className="max-w-7xl mx-auto w-full animate-[fadeIn_0.5s_cubic-bezier(0.16,1,0.3,1)] print:max-w-none pb-24">
             {children}
           </div>
