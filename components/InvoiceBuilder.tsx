@@ -178,11 +178,20 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
 
   const handleSave = () => {
     const mainCustomer = type === 'sales' ? selectedRetailCust : selectedBranch;
-    if (!mainCustomer) {
-        alert(type === 'sales' ? "Lütfen bir müşteri seçiniz." : "Lütfen tedarikçi seçiniz.");
+    
+    // Muhasebe modunda şube seçimi zorunlu değil (selectedBranch pas geçilir)
+    // Ama müşteri seçimi zorunlu
+    if (type === 'sales' && !selectedRetailCust) {
+        alert("Lütfen bir müşteri seçiniz.");
         return;
     }
-    if (type === 'sales' && !selectedBranch) {
+    if (type === 'purchase' && !selectedBranch) {
+        alert("Lütfen tedarikçi seçiniz.");
+        return;
+    }
+
+    // Mağaza modunda Şube Zorunlu
+    if (type === 'sales' && panelMode === 'store' && !selectedBranch) {
         alert("Lütfen satışı yapan şubeyi seçiniz.");
         return;
     }
@@ -195,7 +204,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     
     const retailCustObj = customers.find(c => c.id === selectedRetailCust);
     const retailDetails = {
-        branchId: type === 'sales' ? Number(selectedBranch) : undefined,
+        branchId: (type === 'sales' && selectedBranch) ? Number(selectedBranch) : undefined,
         retailName: retailCustObj?.name || '',
         retailPhone1: retailCustObj?.phone || '',
         retailPhone2: retailCustObj?.phone2 || '',
@@ -204,7 +213,24 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         salesRep: panelMode === 'store' ? salesRep : undefined
     };
 
-    onSave(Number(mainCustomer), date, validItems, currency, desc, retailDetails, selectedFile || undefined);
+    // Eğer muhasebe modundaysak ve satışsa, kaynak (branch) ID olmadığı için mainCustomer (RetailCust) kullanılır.
+    // Ancak onSave parametreleri (customerId, ...) şeklindedir.
+    // Satış faturasında borçlanan müşteridir (selectedRetailCust).
+    // Alış faturasında alacaklanan tedarikçidir (selectedBranch).
+    
+    // NOT: Accounting modunda Sales -> selectedRetailCust var. selectedBranch yok.
+    // onSave ilk parametresi: Transaction'un accId'si (Cari Hesap ID).
+    // Sales işleminde AccID = Müşteri
+    // Purchase işleminde AccID = Tedarikçi
+    
+    let targetAccountId: number;
+    if (type === 'sales') {
+        targetAccountId = Number(selectedRetailCust);
+    } else {
+        targetAccountId = Number(selectedBranch);
+    }
+
+    onSave(targetAccountId, date, validItems, currency, desc, retailDetails, selectedFile || undefined);
   };
 
   const printInvoice = (t: Transaction) => {
@@ -243,30 +269,33 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
 
         {/* ROW 1: Source & Target */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
-            {/* Şube Seçimi */}
-            <div className="lg:col-span-4">
-                <label className={labelClass}>
-                    {type === 'sales' ? 'SATIŞI YAPAN ŞUBE (STOK KAYNAĞI)' : 'TEDARİKÇİ'}
-                </label>
-                <div className="relative">
-                    <Store size={18} className="absolute left-4 top-3.5 text-slate-400" />
-                    <select
-                        className={`${inputClass} pl-11 appearance-none`}
-                        value={selectedBranch}
-                        onChange={e => setSelectedBranch(Number(e.target.value))}
-                    >
-                        <option value="">{type === 'sales' ? 'Şube Seçiniz...' : 'Tedarikçi Seçiniz...'}</option>
-                        {type === 'sales' 
-                            ? allCustomers.filter(c => c.section === 'store' && !c.parentId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)
-                            : allCustomers.filter(c => c.type === 'tedarikci' || c.type === 'both').map(c => <option key={c.id} value={c.id}>{c.name}</option>)
-                        }
-                    </select>
+            
+            {/* Şube Seçimi (Sadece Mağaza Modunda veya Alış Faturasında Tedarikçi seçimi olarak görünür) */}
+            {(panelMode === 'store' || type === 'purchase') && (
+                <div className="lg:col-span-4">
+                    <label className={labelClass}>
+                        {type === 'sales' ? 'SATIŞI YAPAN ŞUBE (STOK KAYNAĞI)' : 'TEDARİKÇİ'}
+                    </label>
+                    <div className="relative">
+                        <Store size={18} className="absolute left-4 top-3.5 text-slate-400" />
+                        <select
+                            className={`${inputClass} pl-11 appearance-none`}
+                            value={selectedBranch}
+                            onChange={e => setSelectedBranch(Number(e.target.value))}
+                        >
+                            <option value="">{type === 'sales' ? 'Şube Seçiniz...' : 'Tedarikçi Seçiniz...'}</option>
+                            {type === 'sales' 
+                                ? allCustomers.filter(c => c.section === 'store' && !c.parentId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                                : allCustomers.filter(c => c.type === 'tedarikci' || c.type === 'both').map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                            }
+                        </select>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Müşteri Seçimi */}
             {type === 'sales' && (
-                <div className="lg:col-span-6">
+                <div className={`${(panelMode === 'store' || type === 'purchase') ? 'lg:col-span-6' : 'lg:col-span-10'}`}>
                     <label className={`${labelClass} text-sky-500`}>MÜŞTERİ (BORÇLU HESABI)</label>
                     {!showQuickAdd ? (
                         <div className="relative">
@@ -341,8 +370,8 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
             </div>
         </div>
 
-        {/* ROW 3: Logistics (Orange Theme) */}
-        {type === 'sales' && (
+        {/* ROW 3: Logistics (Sadece Mağaza Modunda Göster) */}
+        {type === 'sales' && panelMode === 'store' && (
             <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 mb-8">
                 <div className="flex items-center gap-2 mb-4">
                     <Truck className="text-orange-500" size={20} />
@@ -356,11 +385,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                     <div className="md:col-span-3">
                          <input type="date" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white text-slate-600" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} placeholder="Teslim Tarihi" />
                     </div>
-                    {panelMode === 'store' && (
-                        <div className="md:col-span-3">
-                             <input type="text" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white placeholder-slate-400" placeholder="Satış Temsilcisi" value={salesRep} onChange={e => setSalesRep(e.target.value)} />
-                        </div>
-                    )}
+                    <div className="md:col-span-3">
+                         <input type="text" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white placeholder-slate-400" placeholder="Satış Temsilcisi" value={salesRep} onChange={e => setSalesRep(e.target.value)} />
+                    </div>
                 </div>
             </div>
         )}

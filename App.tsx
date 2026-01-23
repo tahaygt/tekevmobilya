@@ -700,6 +700,7 @@ const App: React.FC = () => {
                 onSelectCustomer={handleCustomerSelect} // YENİ
                 onAddCustomer={addCustomer} // YENİ
                 onDeleteCustomer={deleteCustomer} // YENİ EKLENDİ (Alt Cari Silme İçin)
+                onEditCustomer={editCustomer} // YENİ: Edit Function eklendi
                 panelMode={panelMode}
             /> :
             activePage === 'products' ? <Products products={products} onAddProduct={addProduct} onEditProduct={editProduct} onDeleteProduct={deleteProduct} /> :

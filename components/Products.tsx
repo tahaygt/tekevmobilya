@@ -295,7 +295,7 @@ export const Products: React.FC<ProductsProps> = ({ products, onAddProduct, onEd
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border
                             ${p.type === 'satilan' ? 'bg-blue-50 text-blue-600 border-blue-100' : p.type === 'alinan' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-purple-50 text-purple-600 border-purple-100'}
                         `}>
-                            {p.type === 'satilan' ? 'Satış' : p.type === 'alinan' ? 'Alış' : 'Both'}
+                            {p.type === 'satilan' ? 'Satış' : p.type === 'alinan' ? 'Alış' : 'Her İkisi'}
                         </span>
                      )}
                   </td>

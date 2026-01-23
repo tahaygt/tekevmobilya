@@ -82,9 +82,11 @@ export const Customers: React.FC<CustomersProps> = ({
 
   const formatBalance = (amount: number, curr: string) => {
       if(amount === 0) return null;
+      const label = amount > 0 ? '(Borçlu)' : '(Alacaklı)';
       return (
-        <div key={curr} className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${amount > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-            {amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {curr}
+        <div key={curr} className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md flex items-center justify-end gap-1 ${amount > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            <span>{amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {curr}</span>
+            <span className="text-[9px] opacity-70 uppercase tracking-tight">{label}</span>
         </div>
       );
   };

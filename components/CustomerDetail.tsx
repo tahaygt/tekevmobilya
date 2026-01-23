@@ -16,11 +16,12 @@ interface CustomerDetailProps {
   onSelectCustomer: (id: number) => void; 
   onAddCustomer: (data: Omit<Customer, 'id' | 'balances'>) => Promise<Customer>;
   onDeleteCustomer?: (id: number) => Promise<void>;
+  onEditCustomer?: (customer: Customer) => Promise<void>; // YENİ: Edit Function
   panelMode?: 'accounting' | 'store';
 }
 
 export const CustomerDetail: React.FC<CustomerDetailProps> = ({ 
-  customer, allCustomers, transactions, safes, onBack, onPayment, onDeleteTransaction, onEditTransaction, onSelectCustomer, onAddCustomer, onDeleteCustomer, panelMode
+  customer, allCustomers, transactions, safes, onBack, onPayment, onDeleteTransaction, onEditTransaction, onSelectCustomer, onAddCustomer, onDeleteCustomer, onEditCustomer, panelMode
 }) => {
   const [activeTab, setActiveTab] = useState<'transactions' | 'subcustomers'>('transactions');
   const [modalMode, setModalMode] = useState<'in' | 'out' | null>(null);
@@ -31,6 +32,10 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const [showSubAdd, setShowSubAdd] = useState(false);
   const [newSubName, setNewSubName] = useState('');
   const [newSubPhone, setNewSubPhone] = useState('');
+
+  // Edit Modal State
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [editFormData, setEditFormData] = useState<Customer>(customer);
 
   // Payment Form
   const [amount, setAmount] = useState('');
@@ -104,6 +109,13 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
     setAmount('');
     setDesc('');
     setPaymentMethod('nakit');
+  };
+
+  const handleEditSubmit = async () => {
+      if(onEditCustomer) {
+          await onEditCustomer(editFormData);
+          setIsEditingCustomer(false);
+      }
   };
 
   const handleAddSubCustomer = async () => {
@@ -207,6 +219,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                 </div>
             </div>
             <div className="flex gap-3">
+                 <button onClick={() => { setEditFormData(customer); setIsEditingCustomer(true); }} className="bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
+                     <Edit2 size={18} className="mr-2"/> Cari Düzenle
+                 </button>
                  <button onClick={handlePrint} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
                      <Printer size={18} className="mr-2"/> Yazdır
                  </button>
@@ -368,6 +383,38 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
               </div>
           )}
       </div>
+
+       {/* Edit Customer Modal */}
+       {isEditingCustomer && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsEditingCustomer(false)} />
+            <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Edit2 className="mr-2 text-orange-500"/> Cari Düzenle</h3>
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Firma / Şahıs Adı</label>
+                        <input className="w-full border border-slate-200 rounded-lg p-2" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} />
+                    </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Telefon 1</label>
+                        <input className="w-full border border-slate-200 rounded-lg p-2" value={editFormData.phone} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Telefon 2</label>
+                        <input className="w-full border border-slate-200 rounded-lg p-2" value={editFormData.phone2} onChange={e => setEditFormData({...editFormData, phone2: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Adres</label>
+                        <input className="w-full border border-slate-200 rounded-lg p-2" value={editFormData.address} onChange={e => setEditFormData({...editFormData, address: e.target.value})} />
+                    </div>
+                    <div className="flex gap-2 justify-end mt-4">
+                        <button onClick={() => setIsEditingCustomer(false)} className="px-4 py-2 text-slate-500 font-bold bg-slate-100 rounded-lg">İptal</button>
+                        <button onClick={handleEditSubmit} className="px-4 py-2 text-white font-bold bg-slate-900 rounded-lg">Kaydet</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+       )}
 
        {/* Payment Modal */}
        {modalMode && (

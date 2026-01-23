@@ -46,17 +46,40 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       return relevantTrans.filter(t => t.date === selectedDate && t.type === 'purchase');
   }, [transactions, activeTab, selectedDate, panelMode]);
 
-  // Aylık Ürün Satışları
-  const productSalesSummary = useMemo(() => {
+  // Aylık Ürün Satışları (Cari Bazlı Gruplama)
+  const monthlyCustomerSales = useMemo(() => {
       if (activeTab !== 'monthly') return [];
-      const sales = activeTransactions.filter(t => t.type === 'sales' && t.items);
-      const productCounts: Record<string, number> = {};
+      
+      const sales = activeTransactions.filter(t => t.type === 'sales');
+      
+      // Carilere Göre Grupla
+      const groupedByCustomer: Record<number, { customerName: string, items: { name: string, qty: number, total: number }[], total: number }> = {};
+
       sales.forEach(sale => {
-          sale.items?.forEach(item => {
-              productCounts[item.name] = (productCounts[item.name] || 0) + item.qty;
-          });
+          if(!sale.accId) return;
+          const custId = Number(sale.accId);
+          const custName = sale.accName || 'Bilinmeyen Cari';
+          
+          if (!groupedByCustomer[custId]) {
+              groupedByCustomer[custId] = { customerName: custName, items: [], total: 0 };
+          }
+          
+          groupedByCustomer[custId].total += sale.total;
+
+          // Ürünleri ekle
+          if(sale.items) {
+              sale.items.forEach(item => {
+                  groupedByCustomer[custId].items.push({
+                      name: item.name,
+                      qty: item.qty,
+                      total: item.total
+                  });
+              });
+          }
       });
-      return Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
+
+      return Object.values(groupedByCustomer);
+
   }, [activeTransactions, activeTab]);
 
   return (
@@ -106,54 +129,56 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
             </div>
         </div>
 
-        {/* Transactions Grid */}
-        <div className="grid grid-cols-1 gap-6">
-            {distinctCustIds.length === 0 ? (
-                <div className="text-center py-20 text-slate-400 font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    Bu tarih için kayıt bulunamadı.
-                </div>
-            ) : (
-                distinctCustIds.map(custId => {
-                    const cust = customers.find(c => c.id === custId);
-                    if(!cust) return null;
-                    const custTrans = activeTransactions.filter(t => t.accId === custId);
-                    return (
-                        <div key={custId} className="break-inside-avoid border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-                            <div className="bg-slate-50 px-6 py-3 border-b border-slate-100 flex justify-between items-center">
-                                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-slate-400"></div>
-                                    {cust.name}
-                                </div>
-                                <div className="text-xs font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">
-                                    Bakiye: {cust.balances.TL.toLocaleString('tr-TR')} TL
-                                </div>
-                            </div>
-                            <div className="divide-y divide-slate-50">
-                                {custTrans.map(t => (
-                                    <div key={t.id} className="grid grid-cols-12 gap-4 px-6 py-3 text-xs items-center hover:bg-slate-50/50">
-                                        <div className="col-span-2 text-slate-400 font-mono">{t.date.split('-').reverse().join('.')}</div>
-                                        <div className="col-span-4 font-bold text-slate-700">
-                                            {t.items?.map(i => i.name).join(', ') || t.desc}
-                                        </div>
-                                        <div className="col-span-2 text-center">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold
-                                                ${t.type === 'sales' ? 'bg-sky-50 text-sky-600' : 
-                                                  t.type === 'cash_in' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}
-                                            `}>
-                                                {t.type === 'sales' ? 'Satış' : t.type === 'cash_in' ? 'Tahsilat' : t.type}
-                                            </span>
-                                        </div>
-                                        <div className="col-span-4 text-right font-mono font-bold text-slate-800">
-                                            {formatMoney(t.total, t.currency)}
-                                        </div>
+        {/* Transactions Grid (DAILY VIEW) */}
+        {activeTab === 'daily' && (
+            <div className="grid grid-cols-1 gap-6">
+                {distinctCustIds.length === 0 ? (
+                    <div className="text-center py-20 text-slate-400 font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        Bu tarih için kayıt bulunamadı.
+                    </div>
+                ) : (
+                    distinctCustIds.map(custId => {
+                        const cust = customers.find(c => c.id === custId);
+                        if(!cust) return null;
+                        const custTrans = activeTransactions.filter(t => t.accId === custId);
+                        return (
+                            <div key={custId} className="break-inside-avoid border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                                <div className="bg-slate-50 px-6 py-3 border-b border-slate-100 flex justify-between items-center">
+                                    <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                                        {cust.name}
                                     </div>
-                                ))}
+                                    <div className="text-xs font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-100">
+                                        Bakiye: {cust.balances.TL.toLocaleString('tr-TR')} TL
+                                    </div>
+                                </div>
+                                <div className="divide-y divide-slate-50">
+                                    {custTrans.map(t => (
+                                        <div key={t.id} className="grid grid-cols-12 gap-4 px-6 py-3 text-xs items-center hover:bg-slate-50/50">
+                                            <div className="col-span-2 text-slate-400 font-mono">{t.date.split('-').reverse().join('.')}</div>
+                                            <div className="col-span-4 font-bold text-slate-700">
+                                                {t.items?.map(i => i.name).join(', ') || t.desc}
+                                            </div>
+                                            <div className="col-span-2 text-center">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold
+                                                    ${t.type === 'sales' ? 'bg-sky-50 text-sky-600' : 
+                                                    t.type === 'cash_in' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}
+                                                `}>
+                                                    {t.type === 'sales' ? 'Satış' : t.type === 'cash_in' ? 'Tahsilat' : t.type}
+                                                </span>
+                                            </div>
+                                            <div className="col-span-4 text-right font-mono font-bold text-slate-800">
+                                                {formatMoney(t.total, t.currency)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )
-                })
-            )}
-        </div>
+                        )
+                    })
+                )}
+            </div>
+        )}
         
         {/* Bottom Sections: Purchase Invoices & Product Summary */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12 break-inside-avoid">
@@ -177,22 +202,44 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                 </div>
             )}
 
-            {/* Monthly Product Stats */}
-            {activeTab === 'monthly' && productSalesSummary.length > 0 && (
+            {/* Monthly Customer Sales Detail */}
+            {activeTab === 'monthly' && monthlyCustomerSales.length > 0 && (
                 <div className="border border-sky-100 rounded-2xl overflow-hidden bg-white lg:col-span-2">
                     <div className="bg-sky-50/50 px-6 py-3 border-b border-sky-100 font-bold text-sky-700 text-xs uppercase flex items-center gap-2">
-                        <Box size={14}/> Aylık En Çok Satan Ürünler
+                        <Box size={14}/> Aylık Cari Bazlı Ürün Satış Listesi
                     </div>
-                    <div className="p-6">
-                        <div className="flex flex-wrap gap-3">
-                            {productSalesSummary.map(([name, qty], idx) => (
-                                <div key={idx} className="bg-white border border-slate-100 rounded-xl px-4 py-2 shadow-sm flex items-center gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center text-[10px] font-bold">{idx+1}</div>
-                                    <span className="text-xs font-bold text-slate-700">{name}</span>
-                                    <span className="text-xs font-mono text-slate-400 border-l border-slate-100 pl-3">{qty} Adet</span>
-                                </div>
-                            ))}
-                        </div>
+                    <div className="divide-y divide-sky-50">
+                        {monthlyCustomerSales.map((custSale, idx) => (
+                             <div key={idx} className="p-5">
+                                 <div className="flex justify-between items-center mb-3">
+                                     <div className="flex items-center gap-2">
+                                         <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center font-bold text-xs">{idx+1}</div>
+                                         <span className="font-bold text-slate-800">{custSale.customerName}</span>
+                                     </div>
+                                     <div className="font-mono font-black text-slate-800 text-sm">{formatMoney(custSale.total)}</div>
+                                 </div>
+                                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                     <table className="w-full text-xs text-left">
+                                         <thead>
+                                             <tr className="text-slate-400">
+                                                 <th className="pb-2 font-medium">Ürün</th>
+                                                 <th className="pb-2 font-medium text-center">Adet</th>
+                                                 <th className="pb-2 font-medium text-right">Tutar</th>
+                                             </tr>
+                                         </thead>
+                                         <tbody className="divide-y divide-slate-100">
+                                             {custSale.items.map((item, i) => (
+                                                 <tr key={i}>
+                                                     <td className="py-2 text-slate-600 font-medium">{item.name}</td>
+                                                     <td className="py-2 text-center text-slate-500">{item.qty}</td>
+                                                     <td className="py-2 text-right text-slate-700 font-mono">{formatMoney(item.total)}</td>
+                                                 </tr>
+                                             ))}
+                                         </tbody>
+                                     </table>
+                                 </div>
+                             </div>
+                        ))}
                     </div>
                 </div>
             )}
