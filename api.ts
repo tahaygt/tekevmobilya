@@ -1,8 +1,8 @@
 
 // --- API CONFIGURATION ---
 
-// 1. MUHASEBE SCRİPTİ (Accounting)
-const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbx7SEV7eexwPGyacXaN557aYxXUXOdqM1GD-vvYXW_AqOgzCHkieIZWo-8oJ6FVqwyzIg/exec";
+// 1. MUHASEBE SCRİPTİ (Accounting) - GÜNCELLENDİ
+const ACCOUNTING_API_URL = "https://script.google.com/macros/s/AKfycbzmQAYBKQsjSAQs5pTf5KNina_LFkL7d9xg-FZ4trAItNdZNKJNajJmO7wpnRE59VU7VQ/exec";
 
 // 2. MAĞAZA SCRİPTİ (Store)
 const STORE_API_URL = "https://script.google.com/macros/s/AKfycbz5soHbBcAIfiiCxuntdbbO8QuCqVVB-8rIzp29KJgIXP9mt0Y8CkhmU8I09ZAnb1n1bQ/exec";

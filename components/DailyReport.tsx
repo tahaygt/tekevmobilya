@@ -15,6 +15,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [filterType, setFilterType] = useState<string>('all');
   
+  // PRINT STATE
+  const [printSection, setPrintSection] = useState<string | null>(null);
+  
   const formatDate = (d: string) => d.split('-').reverse().join('.');
   const formatMoney = (amount: number, currency: string = 'TL') => `${amount.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currency}`;
 
@@ -29,7 +32,6 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       filtered = filtered.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
 
       // 2. ÖNEMLİ DÜZELTME: Sadece geçerli (silinmemiş) müşterilere ait işlemleri dahil et.
-      // Bu sayede cari detayında görünmeyen (çünkü cari silinmiş veya hatalı) işlemler rapora yansımaz.
       filtered = filtered.filter(t => t.accId && validCustomerIds.has(t.accId));
 
       // 3. Filter by Date (Daily vs Monthly)
@@ -124,11 +126,26 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         .sort((a, b) => b.total - a.total); // Tutara göre sırala
   }, [activeTransactions, panelMode]);
 
+  // --- PRINT FUNCTION ---
+  const handlePrintSection = (sectionId: string) => {
+      setPrintSection(sectionId);
+      setTimeout(() => {
+          window.print();
+          setPrintSection(null);
+      }, 100);
+  };
+  
+  // Determines if an element should be hidden during print
+  const isHidden = (mySectionId: string) => {
+      if (!printSection) return ''; // No specific section, show everything (or let standard print rules apply)
+      return printSection !== mySectionId ? 'print:hidden' : '';
+  };
+
 
   return (
     <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
       {/* Top Bar */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 no-print sticky top-0 z-20">
+      <div className={`bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 no-print sticky top-0 z-20 ${printSection ? 'print:hidden' : ''}`}>
          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
             <button onClick={() => setActiveTab('daily')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'daily' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Günlük</button>
             <button onClick={() => setActiveTab('monthly')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'monthly' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Aylık</button>
@@ -155,7 +172,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       </div>
 
       {/* Main Report Card */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-8 print:p-0 print:border-none shadow-xl print:shadow-none min-h-[600px] relative overflow-hidden">
+      <div className={`bg-white border border-slate-200 rounded-3xl p-8 print:p-0 print:border-none shadow-xl print:shadow-none min-h-[600px] relative overflow-hidden ${isHidden('main-report')}`}>
         {/* Decorative Background for Print */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-bl-full -z-10 opacity-50 print:opacity-100"></div>
 
@@ -174,7 +191,15 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
         {/* Transactions Grid (DAILY VIEW) */}
         {activeTab === 'daily' && (
-            <div className="grid grid-cols-1 gap-6">
+            <div className={`grid grid-cols-1 gap-6 ${isHidden('transactions-grid')}`}>
+                 {/* Section Header with Print Button */}
+                 <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 print:hidden">
+                    <h3 className="text-sm font-bold text-slate-700 uppercase">GÜNLÜK HAREKETLER</h3>
+                    <button onClick={() => handlePrintSection('transactions-grid')} className="text-slate-400 hover:text-slate-700 transition-colors p-1" title="Sadece Listeyi Yazdır">
+                        <Printer size={14} />
+                    </button>
+                 </div>
+
                 {distinctCustIds.length === 0 ? (
                     <div className="text-center py-20 text-slate-400 font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                         Bu tarih için kayıt bulunamadı.
@@ -239,9 +264,10 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12 break-inside-avoid">
             {/* Daily Expenses */}
             {activeTab === 'daily' && dailyPurchaseInvoices.length > 0 && (
-                <div className="border border-red-100 rounded-2xl overflow-hidden bg-white">
-                    <div className="bg-red-50/50 px-6 py-3 border-b border-red-100 font-bold text-red-700 text-xs uppercase flex items-center gap-2">
-                        <Truck size={14}/> Günlük Giderler / Alışlar
+                <div className={`border border-red-100 rounded-2xl overflow-hidden bg-white ${isHidden('daily-expenses')}`}>
+                    <div className="bg-red-50/50 px-6 py-3 border-b border-red-100 font-bold text-red-700 text-xs uppercase flex items-center justify-between">
+                        <div className="flex items-center gap-2"><Truck size={14}/> Günlük Giderler / Alışlar</div>
+                        <button onClick={() => handlePrintSection('daily-expenses')} className="text-red-400 hover:text-red-700 print:hidden"><Printer size={12}/></button>
                     </div>
                     <div className="divide-y divide-red-50">
                         {dailyPurchaseInvoices.map(t => (
@@ -259,9 +285,10 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
             {/* Monthly Customer Sales Detail */}
             {activeTab === 'monthly' && monthlyCustomerSales.length > 0 && (
-                <div className="border border-sky-100 rounded-2xl overflow-hidden bg-white lg:col-span-2">
-                    <div className="bg-sky-50/50 px-6 py-3 border-b border-sky-100 font-bold text-sky-700 text-xs uppercase flex items-center gap-2">
-                        <Box size={14}/> Aylık Cari Bazlı Ürün Satış Listesi
+                <div className={`border border-sky-100 rounded-2xl overflow-hidden bg-white lg:col-span-2 ${isHidden('monthly-sales')}`}>
+                    <div className="bg-sky-50/50 px-6 py-3 border-b border-sky-100 font-bold text-sky-700 text-xs uppercase flex items-center justify-between">
+                        <div className="flex items-center gap-2"><Box size={14}/> Aylık Cari Bazlı Ürün Satış Listesi</div>
+                        <button onClick={() => handlePrintSection('monthly-sales')} className="text-sky-400 hover:text-sky-700 print:hidden"><Printer size={12}/></button>
                     </div>
                     <div className="divide-y divide-sky-50">
                         {monthlyCustomerSales.map((custSale, idx) => (
@@ -302,10 +329,11 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
 
         {/* --- SADECE MAĞAZA MODU: SATIŞ TEMSİLCİSİ PERFORMANSI --- */}
         {panelMode === 'store' && salesByRep.length > 0 && (
-            <div className="mt-12 break-inside-avoid">
+            <div className={`mt-12 break-inside-avoid ${isHidden('sales-rep')}`}>
                  <div className="border border-orange-100 rounded-2xl overflow-hidden bg-white shadow-sm">
-                    <div className="bg-orange-50/50 px-6 py-4 border-b border-orange-100 font-bold text-orange-700 text-sm uppercase flex items-center gap-2">
-                        <UserCheck size={16}/> Satış Temsilcisi Performansı ({activeTab === 'daily' ? 'Günlük' : 'Aylık'})
+                    <div className="bg-orange-50/50 px-6 py-4 border-b border-orange-100 font-bold text-orange-700 text-sm uppercase flex items-center justify-between">
+                        <div className="flex items-center gap-2"><UserCheck size={16}/> Satış Temsilcisi Performansı ({activeTab === 'daily' ? 'Günlük' : 'Aylık'})</div>
+                        <button onClick={() => handlePrintSection('sales-rep')} className="text-orange-400 hover:text-orange-700 print:hidden"><Printer size={14}/></button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
                         {salesByRep.map((rep, idx) => (

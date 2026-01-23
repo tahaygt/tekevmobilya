@@ -210,19 +210,19 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
      const isNegative = bal < 0; // Alacaklı
 
       return (
-        <div className="relative group bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex-1 min-w-[200px]">
-            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-10 transition-colors ${isPositive ? 'bg-red-500' : isNegative ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+        <div className="relative group bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex-1 min-w-[200px] print:border print:border-slate-300 print:shadow-none">
+            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-10 transition-colors ${isPositive ? 'bg-red-500' : isNegative ? 'bg-green-500' : 'bg-slate-300'} print:hidden`}></div>
             <div className="relative z-10">
                 <div className="flex justify-between items-start mb-4">
                     <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{currency} BAKİYESİ</span>
                     {bal !== 0 && (
-                        <div className={`p-1.5 rounded-lg ${isPositive ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
+                        <div className={`p-1.5 rounded-lg ${isPositive ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'} print:hidden`}>
                             {isPositive ? <TrendingUp size={16}/> : <TrendingDown size={16}/>}
                         </div>
                     )}
                 </div>
-                <div className={`text-3xl font-black font-mono tracking-tighter mb-1 ${isPositive ? 'text-red-600' : isNegative ? 'text-green-600' : 'text-slate-400'}`}>
-                    {Math.abs(bal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                <div className={`text-3xl font-black font-mono tracking-tighter mb-1 ${isPositive ? 'text-red-600' : isNegative ? 'text-green-600' : 'text-slate-400'} print:text-black`}>
+                    {(Math.abs(bal) as any).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                     {isPositive ? 'Müşteri Borçlu' : isNegative ? 'Müşteri Alacaklı' : 'Bakiye Yok'}
@@ -237,249 +237,347 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
 
   return (
     <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
-      {/* Transaction Delete Modal */}
-      <ConfirmationModal isOpen={!!deleteId} title="İşlemi Sil" message="Bu işlemi silmek istediğinize emin misiniz? Bakiye geri alınacaktır." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} />
-      
-      {/* Sub Customer Delete Modal */}
-      <ConfirmationModal isOpen={!!deleteSubId} title="Alt Cariyi Sil" message="Bu cariyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz." onConfirm={confirmDeleteSub} onCancel={() => setDeleteSubId(null)} />
-      
-      {viewingImage && (
-          <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur flex items-center justify-center p-4 animate-in fade-in zoom-in-95 no-print">
-              <div className="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center">
-                  <button onClick={() => setViewingImage(null)} className="absolute -top-12 right-0 text-white hover:text-slate-300 p-2"><X size={32} /></button>
-                  <img src={viewingImage} alt="İrsaliye" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
+      {/* 
+          =============================================
+          PRINT ONLY TEMPLATE (Hesap Ekstresi)
+          =============================================
+      */}
+      <div className="hidden print:block font-sans p-8">
+          {/* Header */}
+          <div className="flex justify-between items-start mb-12 border-b-2 border-slate-900 pb-8">
+              <div>
+                  <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">TEKDEMİR</h1>
+                  <div className="text-sm font-bold uppercase tracking-widest text-slate-500">
+                      {panelMode === 'store' ? 'MAĞAZA YÖNETİMİ' : 'MOBİLYA & İÇ MİMARLIK'}
+                  </div>
+              </div>
+              <div className="text-right">
+                  <h2 className="text-2xl font-bold text-slate-800">HESAP EKSTRESİ</h2>
+                  <div className="text-slate-500 text-sm mt-1">Tarih: {new Date().toLocaleDateString('tr-TR')}</div>
               </div>
           </div>
-      )}
 
-      {/* Header Area */}
-      <div className="no-print">
-        <button onClick={onBack} className="mb-6 text-slate-500 hover:text-slate-800 flex items-center text-xs font-bold uppercase tracking-wide transition-colors group">
-          <ArrowLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Listeye Dön
-        </button>
-        
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mb-8">
-            <div>
-                {customer.parentId && (
-                    <div className="text-xs text-orange-600 font-bold mb-2 flex items-center bg-orange-50 w-fit px-2 py-1 rounded">
-                        <CornerDownRight size={12} className="mr-1"/> 
-                        {allCustomers.find(c => c.id === customer.parentId)?.name} Şubesine Bağlı
-                    </div>
-                )}
-                <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">{customer.name}</h1>
-                <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
-                    <span>#{customer.id}</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                    <span>{customer.phone || 'Telefon Yok'}</span>
-                </div>
-            </div>
-            <div className="flex gap-3">
-                 <button onClick={() => { setEditFormData(customer); setIsEditingCustomer(true); }} className="bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
-                     <Edit2 size={18} className="mr-2"/> Cari Düzenle
-                 </button>
-                 <button onClick={handlePrint} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
-                     <Printer size={18} className="mr-2"/> Yazdır
-                 </button>
-                 <button onClick={() => setModalMode('in')} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center">
-                     <ArrowDownLeft size={18} className="mr-2"/> Tahsilat Al
-                 </button>
-                 <button onClick={() => setModalMode('out')} className="bg-white border border-slate-200 text-slate-700 hover:border-red-500 hover:text-red-600 px-6 py-3 rounded-xl font-bold transition-all active:scale-95 flex items-center">
-                     <ArrowUpRight size={18} className="mr-2"/> Ödeme Yap
-                 </button>
-            </div>
-        </div>
+          {/* Customer Info Box */}
+          <div className="bg-slate-50 border border-slate-200 p-6 rounded-xl mb-8 flex justify-between items-center">
+              <div>
+                  <div className="text-xs font-bold text-slate-400 uppercase mb-1">Sayın Müşteri</div>
+                  <div className="text-2xl font-bold text-slate-900 mb-1">{customer.name}</div>
+                  <div className="text-sm text-slate-600">{customer.address || 'Adres bilgisi bulunmamaktadır.'}</div>
+              </div>
+              <div className="text-right">
+                  <div className="text-xs font-bold text-slate-400 uppercase mb-1">İletişim</div>
+                  <div className="text-lg font-bold text-slate-800">{customer.phone || '-'}</div>
+                  <div className="text-sm text-slate-600">{customer.phone2}</div>
+              </div>
+          </div>
 
-        {/* Balance Cards */}
-        <div className="flex flex-wrap gap-4 mb-8">
-            {renderBalanceBox('TL')}
-            {renderBalanceBox('USD')}
-            {renderBalanceBox('EUR')}
-        </div>
+          {/* Table */}
+          <table className="w-full text-left text-xs mb-8">
+                <thead>
+                    <tr className="border-b-2 border-slate-800">
+                        <th className="py-2 font-bold text-slate-900">TARİH</th>
+                        <th className="py-2 font-bold text-slate-900">İŞLEM TÜRÜ</th>
+                        <th className="py-2 font-bold text-slate-900">AÇIKLAMA / ÜRÜNLER</th>
+                        <th className="py-2 text-right font-bold text-slate-900">BORÇ</th>
+                        <th className="py-2 text-right font-bold text-slate-900">ALACAK</th>
+                        <th className="py-2 text-right font-bold text-slate-900">BAKİYE</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                    {processedTransactions.map((t, idx) => {
+                        const isDebt = t.type === 'sales' || t.type === 'cash_out';
+                        const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                        return (
+                            <tr key={idx}>
+                                <td className="py-2 text-slate-600 font-mono">{formatDate(t.date)}</td>
+                                <td className="py-2 text-slate-800 font-bold uppercase">
+                                    {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
+                                </td>
+                                <td className="py-2 text-slate-600 max-w-[300px]">
+                                    {t.items ? t.items.map(i => i.name).join(', ') : t.desc}
+                                    {t.desc && t.items && <span className="italic text-slate-400 ml-1">({t.desc})</span>}
+                                </td>
+                                <td className="py-2 text-right font-mono text-slate-800">{isDebt ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
+                                <td className="py-2 text-right font-mono text-slate-800">{isCredit ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
+                                <td className="py-2 text-right font-mono font-bold text-slate-900">{(t as any).snapshotBalance.toLocaleString('tr-TR', {minimumFractionDigits:2})} {t.currency}</td>
+                            </tr>
+                        )
+                    })}
+                </tbody>
+          </table>
+
+          {/* Balance Summary */}
+          <div className="flex justify-end mb-16">
+              <div className="w-64">
+                  {Object.entries(realBalances).map(([curr, val]) => {
+                      if (val === 0) return null;
+                      return (
+                          <div key={curr} className="flex justify-between items-center border-b border-slate-200 py-2">
+                              <span className="font-bold text-slate-600">{curr} Genel Toplam</span>
+                              <span className="font-black text-xl text-slate-900">{(val as any).toLocaleString('tr-TR', {minimumFractionDigits:2})}</span>
+                          </div>
+                      )
+                  })}
+              </div>
+          </div>
+
+          {/* Signature Area */}
+          <div className="grid grid-cols-2 gap-20 mt-12">
+              <div className="text-center">
+                  <div className="text-sm font-bold text-slate-900 uppercase mb-16">Teslim Alan</div>
+                  <div className="border-t border-slate-300 w-1/2 mx-auto pt-2 text-xs text-slate-400">İmza / Kaşe</div>
+              </div>
+              <div className="text-center">
+                  <div className="text-sm font-bold text-slate-900 uppercase mb-16">Teslim Eden (Firma)</div>
+                  <div className="border-t border-slate-300 w-1/2 mx-auto pt-2 text-xs text-slate-400">İmza / Kaşe</div>
+              </div>
+          </div>
       </div>
       
-      {/* Printable Header */}
-      <div className="hidden print-only mb-8 text-center border-b pb-4">
-          <h1 className="text-2xl font-bold">{customer.name} - Hesap Ekstresi</h1>
-          <p className="text-sm text-gray-500">{new Date().toLocaleDateString('tr-TR')}</p>
-      </div>
+      {/* 
+          =============================================
+          SCREEN VIEW (Hidden on Print)
+          =============================================
+      */}
+      <div className="print:hidden">
+        {/* Transaction Delete Modal */}
+        <ConfirmationModal isOpen={!!deleteId} title="İşlemi Sil" message="Bu işlemi silmek istediğinize emin misiniz? Bakiye geri alınacaktır." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} />
+        
+        {/* Sub Customer Delete Modal */}
+        <ConfirmationModal isOpen={!!deleteSubId} title="Alt Cariyi Sil" message="Bu cariyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz." onConfirm={confirmDeleteSub} onCancel={() => setDeleteSubId(null)} />
+        
+        {viewingImage && (
+            <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur flex items-center justify-center p-4 animate-in fade-in zoom-in-95 no-print">
+                <div className="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center">
+                    <button onClick={() => setViewingImage(null)} className="absolute -top-12 right-0 text-white hover:text-slate-300 p-2"><X size={32} /></button>
+                    <img src={viewingImage} alt="İrsaliye" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
+                </div>
+            </div>
+        )}
 
-      {/* Content Tabs */}
-      <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden min-h-[500px] print:shadow-none print:border-none">
-          {!isSubCustomerView && (
-              <div className="flex items-center gap-8 px-8 border-b border-slate-100 no-print">
-                 <button onClick={() => setActiveTab('transactions')} className={`py-6 text-sm font-bold border-b-2 transition-all ${activeTab === 'transactions' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                     Hesap Hareketleri
-                 </button>
-                 {panelMode === 'store' && !customer.parentId && (
-                     <button onClick={() => setActiveTab('subcustomers')} className={`py-6 text-sm font-bold border-b-2 transition-all flex items-center ${activeTab === 'subcustomers' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                         Alt Cariler <span className="ml-2 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{subCustomers.length}</span>
-                     </button>
-                 )}
-              </div>
-          )}
-          
-          {currentTab === 'transactions' ? (
-              <div className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-100 print:bg-gray-100">
-                            <tr>
-                                <th className="px-6 py-4 w-28">Tarih</th>
-                                <th className="px-6 py-4">İşlem Detayı / Ürünler</th>
-                                <th className="px-6 py-4 w-64">Açıklama</th>
-                                <th className="px-6 py-4 text-center w-28">Tür</th>
-                                <th className="px-6 py-4 text-right w-28">Borç</th>
-                                <th className="px-6 py-4 text-right w-28">Alacak</th>
-                                <th className="px-6 py-4 text-right w-28 bg-slate-100/50">Bakiye</th>
-                                <th className="px-6 py-4 text-center w-20 no-print">İşlem</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {processedTransactions.map(t => {
-                                const isDebt = t.type === 'sales' || t.type === 'cash_out';
-                                const isCredit = t.type === 'purchase' || t.type === 'cash_in';
-                                const totalCost = t.type === 'sales' ? calculateCost(t.items || []) : 0;
-                                
-                                // AÇIKLAMA MANTIĞI: Ana açıklama yoksa, item açıklamalarını birleştir
-                                let displayDesc = t.desc;
-                                if (!displayDesc && t.items && t.items.length > 0) {
-                                    const itemDescs = t.items.map(i => i.description).filter(Boolean);
-                                    if (itemDescs.length > 0) {
-                                        displayDesc = itemDescs.join(', ');
-                                    }
-                                }
+        {/* Header Area */}
+        <div className="no-print">
+            <button onClick={onBack} className="mb-6 text-slate-500 hover:text-slate-800 flex items-center text-xs font-bold uppercase tracking-wide transition-colors group">
+            <ArrowLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Listeye Dön
+            </button>
+            
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mb-8">
+                <div>
+                    {customer.parentId && (
+                        <div className="text-xs text-orange-600 font-bold mb-2 flex items-center bg-orange-50 w-fit px-2 py-1 rounded">
+                            <CornerDownRight size={12} className="mr-1"/> 
+                            {allCustomers.find(c => c.id === customer.parentId)?.name} Şubesine Bağlı
+                        </div>
+                    )}
+                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">{customer.name}</h1>
+                    <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+                        <span>#{customer.id}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        <span>{customer.phone || 'Telefon Yok'}</span>
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={() => { setEditFormData(customer); setIsEditingCustomer(true); }} className="bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
+                        <Edit2 size={18} className="mr-2"/> Cari Düzenle
+                    </button>
+                    <button onClick={handlePrint} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold transition-all flex items-center">
+                        <Printer size={18} className="mr-2"/> Yazdır
+                    </button>
+                    <button onClick={() => setModalMode('in')} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center">
+                        <ArrowDownLeft size={18} className="mr-2"/> Tahsilat Al
+                    </button>
+                    <button onClick={() => setModalMode('out')} className="bg-white border border-slate-200 text-slate-700 hover:border-red-500 hover:text-red-600 px-6 py-3 rounded-xl font-bold transition-all active:scale-95 flex items-center">
+                        <ArrowUpRight size={18} className="mr-2"/> Ödeme Yap
+                    </button>
+                </div>
+            </div>
 
-                                return (
-                                    <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-6 py-4 font-mono text-slate-500 text-xs">{formatDate(t.date)}</td>
-                                        <td className="px-6 py-4">
-                                            {/* İşlem Başlığı */}
-                                            <div className="font-bold text-slate-700">
-                                                {t.items ? 'Fatura' : 'Nakit İşlem'}
-                                                {/* Teslim Alan / Perakende Adı */}
-                                                {panelMode === 'store' && t.retailName && (
-                                                    <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
-                                                )}
-                                            </div>
-                                            <div className="text-xs text-slate-400 truncate max-w-[250px]">{t.items?.map(i => i.name).join(', ')}</div>
-                                            
-                                            {/* Satış Temsilcisi (Sadece Mağaza Modunda) */}
-                                            {panelMode === 'store' && t.salesRep && (
-                                                <div className="text-[10px] font-bold text-orange-600 uppercase mt-1 flex items-center gap-1">
-                                                    <UserCheck size={12} /> {t.salesRep}
-                                                </div>
-                                            )}
+            {/* Balance Cards */}
+            <div className="flex flex-wrap gap-4 mb-8">
+                {renderBalanceBox('TL')}
+                {renderBalanceBox('USD')}
+                {renderBalanceBox('EUR')}
+            </div>
+        </div>
 
-                                            {t.deliveryNoteUrl && (
-                                                <button onClick={() => setViewingImage(t.deliveryNoteUrl || null)} className="mt-1 text-[10px] flex items-center text-blue-500 hover:underline no-print">
-                                                    <FileImage size={10} className="mr-1"/> İrsaliye
-                                                </button>
-                                            )}
-                                            {/* MALİYET GÖSTERİMİ */}
-                                            {t.type === 'sales' && totalCost > 0 && (
-                                                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-50 border border-green-100 text-green-700 text-[10px] font-bold shadow-sm">
-                                                    <Box size={10} />
-                                                    Maliyet Toplamı: {totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {t.currency}
-                                                </div>
-                                            )}
-                                        </td>
-                                        
-                                        {/* AÇIKLAMA SÜTUNU (GÜNCELLENDİ) */}
-                                        <td className="px-6 py-4 text-xs text-slate-600 font-medium align-top">
-                                            {displayDesc ? (
-                                                <div className="line-clamp-2" title={displayDesc}>{displayDesc}</div>
-                                            ) : (
-                                                <span className="text-slate-300 text-[10px] italic">-</span>
-                                            )}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-center">
-                                            <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold border print:border-none print:px-0
-                                                ${t.type === 'sales' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
-                                                  t.type === 'purchase' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                                                  t.type === 'cash_in' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-                                                {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right font-mono font-bold text-red-600 text-xs">{isDebt ? t.total.toLocaleString() : '-'}</td>
-                                        <td className="px-6 py-4 text-right font-mono font-bold text-green-600 text-xs">{isCredit ? t.total.toLocaleString() : '-'}</td>
-                                        <td className="px-6 py-4 text-right font-mono font-bold text-slate-800 text-xs bg-slate-50/50">{(t as any).snapshotBalance.toLocaleString()} {t.currency}</td>
-                                        <td className="px-6 py-4 text-center no-print">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button onClick={() => handleStartEditTransaction(t)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors" title="Düzenle"><Edit2 size={14}/></button>
-                                                <button onClick={() => setDeleteId(t.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sil"><Trash2 size={14}/></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                            {processedTransactions.length === 0 && (
+        {/* Content Tabs */}
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden min-h-[500px] print:shadow-none print:border-none">
+            {!isSubCustomerView && (
+                <div className="flex items-center gap-8 px-8 border-b border-slate-100 no-print">
+                    <button onClick={() => setActiveTab('transactions')} className={`py-6 text-sm font-bold border-b-2 transition-all ${activeTab === 'transactions' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                        Hesap Hareketleri
+                    </button>
+                    {panelMode === 'store' && !customer.parentId && (
+                        <button onClick={() => setActiveTab('subcustomers')} className={`py-6 text-sm font-bold border-b-2 transition-all flex items-center ${activeTab === 'subcustomers' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                            Alt Cariler <span className="ml-2 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{subCustomers.length}</span>
+                        </button>
+                    )}
+                </div>
+            )}
+            
+            {currentTab === 'transactions' ? (
+                <div className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-100 print:bg-gray-100">
                                 <tr>
-                                    <td colSpan={8} className="text-center py-12 text-slate-400 font-medium">Bu cariye ait kayıtlı hareket bulunamadı.</td>
+                                    <th className="px-6 py-4 w-28">Tarih</th>
+                                    <th className="px-6 py-4">İşlem Detayı / Ürünler</th>
+                                    <th className="px-6 py-4 w-64">Açıklama</th>
+                                    <th className="px-6 py-4 text-center w-28">Tür</th>
+                                    <th className="px-6 py-4 text-right w-28">Borç</th>
+                                    <th className="px-6 py-4 text-right w-28">Alacak</th>
+                                    <th className="px-6 py-4 text-right w-28 bg-slate-100/50">Bakiye</th>
+                                    <th className="px-6 py-4 text-center w-20 no-print">İşlem</th>
                                 </tr>
-                            )}
-                        </tbody>
-                        <tfoot className="bg-slate-100 border-t border-slate-200">
-                             <tr>
-                                 <td colSpan={6} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
-                                 <td className="px-8 py-4 text-right">
-                                     <div className="flex flex-col items-end gap-1">
-                                         {realBalances.TL !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.TL.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>}
-                                         {realBalances.USD !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.USD.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} USD</span>}
-                                         {realBalances.EUR !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.EUR.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} EUR</span>}
-                                         {realBalances.TL === 0 && realBalances.USD === 0 && realBalances.EUR === 0 && <span className="text-slate-400 font-mono text-xs">0.00</span>}
-                                     </div>
-                                 </td>
-                                 <td className="no-print"></td>
-                             </tr>
-                        </tfoot>
-                    </table>
-                  </div>
-              </div>
-          ) : (
-              <div className="p-8">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <button onClick={() => setShowSubAdd(true)} className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-slate-400 hover:border-slate-400 hover:text-slate-600 transition-all hover:bg-slate-50 group">
-                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3 group-hover:bg-white group-hover:shadow-sm transition-all"><Plus size={24}/></div>
-                          <span className="font-bold text-sm">Yeni Alt Cari Ekle</span>
-                      </button>
-                      
-                      {showSubAdd && (
-                          <div className="col-span-full bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-4 animate-in slide-in-from-left-4">
-                              <h4 className="font-bold text-slate-800 mb-4">Hızlı Cari Ekleme</h4>
-                              <div className="flex gap-4">
-                                  <input type="text" placeholder="Ad Soyad" className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none" value={newSubName} onChange={e => setNewSubName(e.target.value)} autoFocus />
-                                  <input type="text" placeholder="Telefon" className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
-                                  <button onClick={handleAddSubCustomer} className="bg-slate-900 text-white px-6 rounded-xl font-bold text-sm">Kaydet</button>
-                              </div>
-                          </div>
-                      )}
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {processedTransactions.map(t => {
+                                    const isDebt = t.type === 'sales' || t.type === 'cash_out';
+                                    const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                                    const totalCost = t.type === 'sales' ? calculateCost(t.items || []) : 0;
+                                    
+                                    // AÇIKLAMA MANTIĞI: Ana açıklama yoksa, item açıklamalarını birleştir
+                                    let displayDesc = t.desc;
+                                    if (!displayDesc && t.items && t.items.length > 0) {
+                                        const itemDescs = t.items.map(i => i.description).filter(Boolean);
+                                        if (itemDescs.length > 0) {
+                                            displayDesc = itemDescs.join(', ');
+                                        }
+                                    }
 
-                      {subCustomers.map(sc => (
-                          <div key={sc.id} onClick={() => onSelectCustomer(sc.id)} className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden">
-                              <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); setDeleteSubId(sc.id); }}
-                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors bg-white shadow-sm"
-                                  >
-                                      <Trash2 size={16} />
-                                  </button>
-                              </div>
-                              
-                              <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-full -mr-10 -mt-10 group-hover:bg-blue-50 transition-colors"></div>
-                              <div className="relative z-10">
-                                  <div className="font-bold text-lg text-slate-800 mb-1">{sc.name}</div>
-                                  <div className="text-sm text-slate-400 mb-4">{sc.phone || 'Telefon Yok'}</div>
-                                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                                      <span className="text-xs font-bold text-slate-400 uppercase">Toplam Bakiye</span>
-                                      <span className="font-mono font-bold text-slate-800">{sc.balances.TL.toLocaleString()} TL</span>
-                                  </div>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          )}
+                                    return (
+                                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="px-6 py-4 font-mono text-slate-500 text-xs">{formatDate(t.date)}</td>
+                                            <td className="px-6 py-4">
+                                                {/* İşlem Başlığı */}
+                                                <div className="font-bold text-slate-700">
+                                                    {t.items ? 'Fatura' : 'Nakit İşlem'}
+                                                    {/* Teslim Alan / Perakende Adı */}
+                                                    {panelMode === 'store' && t.retailName && (
+                                                        <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-slate-400 truncate max-w-[250px]">{t.items?.map(i => i.name).join(', ')}</div>
+                                                
+                                                {/* Satış Temsilcisi (Sadece Mağaza Modunda) */}
+                                                {panelMode === 'store' && t.salesRep && (
+                                                    <div className="text-[10px] font-bold text-orange-600 uppercase mt-1 flex items-center gap-1">
+                                                        <UserCheck size={12} /> {t.salesRep}
+                                                    </div>
+                                                )}
+
+                                                {t.deliveryNoteUrl && (
+                                                    <button onClick={() => setViewingImage(t.deliveryNoteUrl || null)} className="mt-1 text-[10px] flex items-center text-blue-500 hover:underline no-print">
+                                                        <FileImage size={10} className="mr-1"/> İrsaliye
+                                                    </button>
+                                                )}
+                                                {/* MALİYET GÖSTERİMİ */}
+                                                {t.type === 'sales' && totalCost > 0 && (
+                                                    <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-50 border border-green-100 text-green-700 text-[10px] font-bold shadow-sm">
+                                                        <Box size={10} />
+                                                        Maliyet Toplamı: {totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {t.currency}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            
+                                            {/* AÇIKLAMA SÜTUNU */}
+                                            <td className="px-6 py-4 text-xs text-slate-600 font-medium align-top">
+                                                {displayDesc ? (
+                                                    <div className="line-clamp-2" title={displayDesc}>{displayDesc}</div>
+                                                ) : (
+                                                    <span className="text-slate-300 text-[10px] italic">-</span>
+                                                )}
+                                            </td>
+
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold border print:border-none print:px-0
+                                                    ${t.type === 'sales' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
+                                                    t.type === 'purchase' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                                    t.type === 'cash_in' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                                                    {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-mono font-bold text-red-600 text-xs">{isDebt ? t.total.toLocaleString() : '-'}</td>
+                                            <td className="px-6 py-4 text-right font-mono font-bold text-green-600 text-xs">{isCredit ? t.total.toLocaleString() : '-'}</td>
+                                            <td className="px-6 py-4 text-right font-mono font-bold text-slate-800 text-xs bg-slate-50/50">{(t as any).snapshotBalance.toLocaleString()} {t.currency}</td>
+                                            <td className="px-6 py-4 text-center no-print">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button onClick={() => handleStartEditTransaction(t)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors" title="Düzenle"><Edit2 size={14}/></button>
+                                                    <button onClick={() => setDeleteId(t.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sil"><Trash2 size={14}/></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                                {processedTransactions.length === 0 && (
+                                    <tr>
+                                        <td colSpan={8} className="text-center py-12 text-slate-400 font-medium">Bu cariye ait kayıtlı hareket bulunamadı.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                            <tfoot className="bg-slate-100 border-t border-slate-200">
+                                <tr>
+                                    <td colSpan={6} className="px-8 py-4 text-right font-bold text-slate-600 uppercase text-xs">Genel Toplam Bakiye</td>
+                                    <td className="px-8 py-4 text-right">
+                                        <div className="flex flex-col items-end gap-1">
+                                            {realBalances.TL !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.TL.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>}
+                                            {realBalances.USD !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.USD.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} USD</span>}
+                                            {realBalances.EUR !== 0 && <span className="font-mono font-black text-slate-800">{realBalances.EUR.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} EUR</span>}
+                                            {realBalances.TL === 0 && realBalances.USD === 0 && realBalances.EUR === 0 && <span className="text-slate-400 font-mono text-xs">0.00</span>}
+                                        </div>
+                                    </td>
+                                    <td className="no-print"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            ) : (
+                <div className="p-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <button onClick={() => setShowSubAdd(true)} className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-slate-400 hover:border-slate-400 hover:text-slate-600 transition-all hover:bg-slate-50 group">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3 group-hover:bg-white group-hover:shadow-sm transition-all"><Plus size={24}/></div>
+                            <span className="font-bold text-sm">Yeni Alt Cari Ekle</span>
+                        </button>
+                        
+                        {showSubAdd && (
+                            <div className="col-span-full bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-4 animate-in slide-in-from-left-4">
+                                <h4 className="font-bold text-slate-800 mb-4">Hızlı Cari Ekleme</h4>
+                                <div className="flex gap-4">
+                                    <input type="text" placeholder="Ad Soyad" className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none" value={newSubName} onChange={e => setNewSubName(e.target.value)} autoFocus />
+                                    <input type="text" placeholder="Telefon" className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none" value={newSubPhone} onChange={e => setNewSubPhone(e.target.value)} />
+                                    <button onClick={handleAddSubCustomer} className="bg-slate-900 text-white px-6 rounded-xl font-bold text-sm">Kaydet</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {subCustomers.map(sc => (
+                            <div key={sc.id} onClick={() => onSelectCustomer(sc.id)} className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden">
+                                <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setDeleteSubId(sc.id); }}
+                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors bg-white shadow-sm"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                                
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-full -mr-10 -mt-10 group-hover:bg-blue-50 transition-colors"></div>
+                                <div className="relative z-10">
+                                    <div className="font-bold text-lg text-slate-800 mb-1">{sc.name}</div>
+                                    <div className="text-sm text-slate-400 mb-4">{sc.phone || 'Telefon Yok'}</div>
+                                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                                        <span className="text-xs font-bold text-slate-400 uppercase">Toplam Bakiye</span>
+                                        <span className="font-mono font-bold text-slate-800">{sc.balances.TL.toLocaleString()} TL</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
       </div>
 
        {/* Edit Transaction Modal */}
