@@ -23,6 +23,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
     { id: 'report', label: 'Finansal Raporlar', icon: PieChart },
   ] : [
     { id: 'invoice-sales', label: 'Perakende Satış', icon: Store }, // Icon changed to Store/Home context
+    { id: 'invoice-purchase', label: 'Alış Faturası', icon: Truck }, // Added Purchase Invoice
     { id: 'customers', label: 'Şubeler & Cariler', icon: Users },
     { id: 'products', label: 'Ürün & Stok', icon: Box },
     { id: 'report', label: 'Satış Raporları', icon: PieChart },
@@ -62,7 +63,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
                         ? 'bg-[#182030] text-orange-500 border-white/5' 
                         : 'bg-slate-800 text-sky-400 border-slate-700'}
                  `}>
-                    {isStore ? 'MAĞAZA YÖNETİMİ' : 'MUHASEBE & FİNANS'}
+                    {isStore ? 'MAĞAZA YÖNETİMİ' : 'MUHASEBE'}
                  </div>
              </div>
              

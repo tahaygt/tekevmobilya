@@ -108,7 +108,7 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
                                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center mb-8 shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform duration-500">
                                     <Calculator size={32} className="text-white" />
                                 </div>
-                                <h2 className="text-3xl font-bold text-white mb-3">Muhasebe & Finans</h2>
+                                <h2 className="text-3xl font-bold text-white mb-3">Muhasebe</h2>
                                 <p className="text-slate-400 text-sm leading-relaxed mb-8 h-12">
                                     Cari hesap yönetimi, faturalandırma, kasa takibi ve detaylı finansal raporlamalar.
                                 </p>
@@ -167,7 +167,7 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
                         <span className="text-2xl font-black text-white">T</span>
                     </div>
                     <h1 className="text-3xl font-black text-white tracking-tight mb-2">TEKDEMİR</h1>
-                    <p className="text-slate-400 text-sm font-medium tracking-wide">Mobilya Yönetim Sistemi v15</p>
+                    <p className="text-slate-400 text-sm font-medium tracking-wide">Mobilya Yönetim Sistemi</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-5">
@@ -227,7 +227,7 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
              </div>
              
              <div className="absolute bottom-6 text-center w-full">
-                <p className="text-slate-600 text-xs font-medium">© 2024 Tekdemir Yazılım. Tüm hakları saklıdır.</p>
+                <p className="text-slate-600 text-xs font-medium">© 2025 tahaygt Yazılım. Tüm hakları saklıdır.</p>
              </div>
         </div>
     );

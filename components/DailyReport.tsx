@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Transaction, Customer, PaymentMethod } from '../types';
-import { Printer, Download, Calendar, Edit3, Filter, Box, TrendingUp, TrendingDown, PieChart, Users, Store, User, Truck, DollarSign, Wallet, UserCheck, CheckCircle } from 'lucide-react';
+import { Printer, Download, Calendar, Edit3, Filter, Box, TrendingUp, TrendingDown, PieChart, Users, Store, User, Truck, DollarSign, Wallet, UserCheck, CheckCircle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 interface DailyReportProps {
   transactions: Transaction[];
@@ -18,7 +18,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
   // PRINT STATE
   const [printSection, setPrintSection] = useState<string | null>(null);
   
-  const formatDate = (d: string) => d.split('-').reverse().join('.');
+  const formatDate = (d: string) => d ? d.split('-').reverse().join('.') : '-';
   const formatMoney = (amount: number, currency: string = 'TL') => `${amount.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currency}`;
 
   // Geçerli Müşteri ID'lerini bir Set içinde tut (Hızlı erişim için)
@@ -40,7 +40,8 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
           // Günlük ana tabloda alış faturalarını gizle (aşağıda özel tablo var)
           filtered = filtered.filter(t => t.type !== 'purchase');
       } else {
-          filtered = filtered.filter(t => t.date.startsWith(selectedMonth));
+          // FIX: Check if date exists before using startsWith
+          filtered = filtered.filter(t => t.date && t.date.startsWith(selectedMonth));
       }
 
       // 4. Filter by Type (Sales/CashIn)
@@ -125,6 +126,45 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         .map(([name, data]) => ({ name, ...data }))
         .sort((a, b) => b.total - a.total); // Tutara göre sırala
   }, [activeTransactions, panelMode]);
+
+  // --- GENEL TOPLAM İSTATİSTİKLERİ (Gelen/Giden Kutuları İçin) ---
+  const summaryStats = useMemo(() => {
+        let relevant = transactions || [];
+        // Filtrele: Panel Modu
+        relevant = relevant.filter(t => (t.section === panelMode || (!t.section && panelMode === 'accounting')));
+        
+        // Filtrele: Tarih (Günlük veya Aylık) - Tüm işlem tipleri dahil
+        if (activeTab === 'daily') {
+            relevant = relevant.filter(t => t.date === selectedDate);
+        } else {
+            // FIX: Check if date exists before using startsWith
+            relevant = relevant.filter(t => t.date && t.date.startsWith(selectedMonth));
+        }
+
+        // Filtrele: Geçerli Müşteriler
+        relevant = relevant.filter(t => t.accId && validCustomerIds.has(t.accId));
+
+        const totals = {
+            incoming: { TL: 0, USD: 0, EUR: 0 }, // Gelen (Satış + Tahsilat)
+            outgoing: { TL: 0, USD: 0, EUR: 0 }  // Giden (Alış + Ödeme)
+        };
+
+        relevant.forEach(t => {
+            const curr = (t.currency || 'TL') as 'TL'|'USD'|'EUR';
+            
+            // Gelen: Satış veya Tahsilat (Nakit Giriş)
+            if (t.type === 'sales' || t.type === 'cash_in') {
+                totals.incoming[curr] += t.total;
+            }
+            // Giden: Alış veya Ödeme (Nakit Çıkış)
+            if (t.type === 'purchase' || t.type === 'cash_out') {
+                totals.outgoing[curr] += t.total;
+            }
+        });
+
+        return totals;
+  }, [transactions, activeTab, selectedDate, selectedMonth, panelMode, validCustomerIds]);
+
 
   // --- PRINT FUNCTION ---
   const handlePrintSection = (sectionId: string) => {
@@ -227,21 +267,26 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                 <div className="divide-y divide-slate-50">
                                     {custTrans.map(t => (
                                         <div key={t.id} className="grid grid-cols-12 gap-4 px-6 py-3 text-xs items-center hover:bg-slate-50/50">
-                                            <div className="col-span-2 text-slate-400 font-mono">{t.date.split('-').reverse().join('.')}</div>
+                                            {/* FIX: Handle missing date safely */}
+                                            <div className="col-span-2 text-slate-400 font-mono">{t.date ? t.date.split('-').reverse().join('.') : '-'}</div>
                                             <div className="col-span-4 font-bold text-slate-700">
-                                                {t.items?.map(i => i.name).join(', ') || t.desc}
-                                                {t.invoiceNo && <span className="ml-2 text-blue-500 font-mono">#{t.invoiceNo}</span>}
+                                                {/* İsim veya Açıklama */}
+                                                <div>
+                                                    {t.items?.map(i => i.name).join(', ') || t.desc}
+                                                    {t.invoiceNo && <span className="ml-2 text-blue-500 font-mono">#{t.invoiceNo}</span>}
+                                                </div>
                                                 
+                                                {/* EKSTRA AÇIKLAMA (Eğer hem ürün hem açıklama varsa veya sadece açıklama ise) */}
+                                                {t.desc && (
+                                                    <div className="text-[10px] text-slate-500 font-medium mt-0.5 italic flex items-center gap-1">
+                                                       <span className="w-1 h-1 rounded-full bg-slate-300"></span> {t.desc}
+                                                    </div>
+                                                )}
+
                                                 {/* MAĞAZA MODU: SATIŞ TEMSİLCİSİ */}
                                                 {panelMode === 'store' && t.salesRep && (
                                                     <div className="text-[9px] text-orange-600 uppercase font-bold mt-0.5 flex items-center gap-1">
                                                         <UserCheck size={10} /> {t.salesRep}
-                                                    </div>
-                                                )}
-                                                {/* MAĞAZA MODU: AÇIKLAMA */}
-                                                {panelMode === 'store' && t.desc && t.items && (
-                                                    <div className="text-[10px] text-slate-400 italic mt-0.5">
-                                                        {t.desc}
                                                     </div>
                                                 )}
                                             </div>
@@ -276,18 +321,28 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                         <button onClick={() => handlePrintSection('daily-expenses')} className="text-red-400 hover:text-red-700 print:hidden"><Printer size={12}/></button>
                     </div>
                     <div className="divide-y divide-red-50">
-                        {dailyPurchaseInvoices.map(t => (
-                            <div key={t.id} className="p-4 flex justify-between items-center text-xs">
-                                <div>
-                                    <div className="font-bold text-slate-700 flex items-center gap-2">
-                                        {t.accName}
-                                        {t.invoiceNo && <span className="font-mono text-slate-400">#{t.invoiceNo}</span>}
+                        {dailyPurchaseInvoices.map(t => {
+                            const totalQty = t.items?.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) || 0;
+                            return (
+                                <div key={t.id} className="p-4 flex justify-between items-center text-xs">
+                                    <div>
+                                        <div className="font-bold text-slate-700 flex items-center gap-2">
+                                            {t.accName}
+                                            {t.invoiceNo && <span className="font-mono text-slate-400">#{t.invoiceNo}</span>}
+                                        </div>
+                                        <div className="text-slate-400 mt-0.5 flex items-center gap-2">
+                                            <span>{t.items?.map(i=>i.name).join(', ')}</span>
+                                            {totalQty > 0 && (
+                                                <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold border border-red-100">
+                                                    {totalQty} Adet
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="text-slate-400 mt-0.5">{t.items?.map(i=>i.name).join(', ')}</div>
+                                    <div className="font-mono font-bold text-red-600">{formatMoney(t.total, t.currency)}</div>
                                 </div>
-                                <div className="font-mono font-bold text-red-600">{formatMoney(t.total, t.currency)}</div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -377,6 +432,61 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                  </div>
             </div>
         )}
+        
+        {/* --- YENİ: Gelen ve Giden Ödeme Toplamları (ÖZET KUTULARI) --- */}
+        <div className={`mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 break-inside-avoid print:break-inside-avoid ${isHidden('summary-boxes')}`}>
+            
+            {/* GELEN ÖDEME TOPLAMLARI (YEŞİL KUTU) */}
+            <div className="border-[3px] border-green-400 rounded-3xl p-6 bg-white relative overflow-hidden shadow-sm">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-green-50 rounded-bl-full -z-0"></div>
+                <div className="relative z-10">
+                    <h3 className="text-green-700 font-black uppercase tracking-wider text-sm mb-6 flex items-center gap-2">
+                        <ArrowDownLeft size={20} className="stroke-[3px]" /> Gelen Ödeme Toplamları
+                    </h3>
+                    
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-end border-b border-green-100 pb-2">
+                            <span className="text-sm font-bold text-slate-500">Türk Lirası (TL)</span>
+                            <span className="text-2xl font-black text-slate-800 font-mono">{formatMoney(summaryStats.incoming.TL, 'TL')}</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-green-100 pb-2">
+                            <span className="text-sm font-bold text-slate-500">ABD Doları (USD)</span>
+                            <span className="text-xl font-black text-green-700 font-mono">{formatMoney(summaryStats.incoming.USD, 'USD')}</span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                            <span className="text-sm font-bold text-slate-500">Euro (EUR)</span>
+                            <span className="text-xl font-black text-blue-700 font-mono">{formatMoney(summaryStats.incoming.EUR, 'EUR')}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* GİDEN ÖDEME TOPLAMLARI (KIRMIZI KUTU) */}
+            <div className="border-[3px] border-red-400 rounded-3xl p-6 bg-white relative overflow-hidden shadow-sm">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-full -z-0"></div>
+                <div className="relative z-10">
+                    <h3 className="text-red-700 font-black uppercase tracking-wider text-sm mb-6 flex items-center gap-2">
+                        <ArrowUpRight size={20} className="stroke-[3px]" /> Giden Ödeme Toplamları
+                    </h3>
+                    
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-end border-b border-red-100 pb-2">
+                            <span className="text-sm font-bold text-slate-500">Türk Lirası (TL)</span>
+                            <span className="text-2xl font-black text-slate-800 font-mono">{formatMoney(summaryStats.outgoing.TL, 'TL')}</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-red-100 pb-2">
+                            <span className="text-sm font-bold text-slate-500">ABD Doları (USD)</span>
+                            <span className="text-xl font-black text-green-700 font-mono">{formatMoney(summaryStats.outgoing.USD, 'USD')}</span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                            <span className="text-sm font-bold text-slate-500">Euro (EUR)</span>
+                            <span className="text-xl font-black text-blue-700 font-mono">{formatMoney(summaryStats.outgoing.EUR, 'EUR')}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
 
       </div>
     </div>

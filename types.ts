@@ -63,6 +63,9 @@ export interface Transaction {
   method?: PaymentMethod;
   linkedTransactionId?: number; // Fatura kapama için bağlantı ID
   
+  // YENİ: Manuel Fatura No
+  invoiceNo?: string;
+
   // Şube/Satış Yeri Bilgisi
   branchId?: number; // SATIŞI YAPAN ŞUBE
   salesRep?: string; // SATIŞ TEMSİLCİSİ (YENİ)

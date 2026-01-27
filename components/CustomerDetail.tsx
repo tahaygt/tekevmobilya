@@ -33,6 +33,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const [showSubAdd, setShowSubAdd] = useState(false);
   const [newSubName, setNewSubName] = useState('');
   const [newSubPhone, setNewSubPhone] = useState('');
+  
+  // Sub-Customer Search State
+  const [subSearchTerm, setSubSearchTerm] = useState('');
 
   // Edit Customer Modal State
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
@@ -54,6 +57,16 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
      if (!allCustomers || panelMode === 'accounting') return [];
      return (allCustomers || []).filter(c => Number(c.parentId) === Number(customer.id));
   }, [customer, allCustomers, panelMode]);
+
+  // Filter Sub-Customers
+  const filteredSubCustomers = useMemo(() => {
+      if (!subSearchTerm) return subCustomers;
+      const lower = subSearchTerm.toLowerCase();
+      return subCustomers.filter(sc => 
+        sc.name.toLowerCase().includes(lower) || 
+        (sc.phone && sc.phone.includes(lower))
+      );
+  }, [subCustomers, subSearchTerm]);
 
   const relatedCustomerIds = useMemo(() => {
      if (customer.parentId) return [Number(customer.id)];
@@ -436,14 +449,32 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
         {/* Content Tabs */}
         <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden min-h-[500px] print:shadow-none print:border-none">
             {!isSubCustomerView && (
-                <div className="flex items-center gap-8 px-8 border-b border-slate-100 no-print">
-                    <button onClick={() => setActiveTab('transactions')} className={`py-6 text-sm font-bold border-b-2 transition-all ${activeTab === 'transactions' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                        Hesap Hareketleri
-                    </button>
-                    {panelMode === 'store' && !customer.parentId && (
-                        <button onClick={() => setActiveTab('subcustomers')} className={`py-6 text-sm font-bold border-b-2 transition-all flex items-center ${activeTab === 'subcustomers' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                            Alt Cariler <span className="ml-2 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{subCustomers.length}</span>
+                <div className="flex flex-col md:flex-row md:items-center justify-between px-8 border-b border-slate-100 no-print gap-4">
+                    <div className="flex items-center gap-8">
+                        <button onClick={() => setActiveTab('transactions')} className={`py-6 text-sm font-bold border-b-2 transition-all ${activeTab === 'transactions' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                            Hesap Hareketleri
                         </button>
+                        {panelMode === 'store' && !customer.parentId && (
+                            <button onClick={() => setActiveTab('subcustomers')} className={`py-6 text-sm font-bold border-b-2 transition-all flex items-center ${activeTab === 'subcustomers' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                Alt Cariler <span className="ml-2 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{subCustomers.length}</span>
+                            </button>
+                        )}
+                    </div>
+                    
+                    {/* Alt Cari Arama Kutusu - Sadece ilgili tab aktifken göster */}
+                    {activeTab === 'subcustomers' && (
+                         <div className="py-2 md:py-0 w-full md:w-72">
+                             <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Şube/Cari Ara..." 
+                                    className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-50 transition-all"
+                                    value={subSearchTerm}
+                                    onChange={e => setSubSearchTerm(e.target.value)}
+                                />
+                             </div>
+                        </div>
                     )}
                 </div>
             )}
@@ -595,7 +626,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                             </div>
                         )}
 
-                        {subCustomers.map(sc => (
+                        {filteredSubCustomers.map(sc => (
                             <div key={sc.id} onClick={() => onSelectCustomer(sc.id)} className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden">
                                 <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button 
