@@ -61,32 +61,50 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
       return relevantTrans.filter(t => t.date === selectedDate && t.type === 'purchase' && t.accId && validCustomerIds.has(t.accId));
   }, [transactions, activeTab, selectedDate, panelMode, validCustomerIds]);
 
-  // Aylık Ürün Satışları (Cari Bazlı Gruplama)
-  const monthlyCustomerSales = useMemo(() => {
+  // Aylık Ürün Satışları (Cari veya Şube Bazlı Gruplama)
+  const monthlyGroupedSales = useMemo(() => {
       if (activeTab !== 'monthly') return [];
       
       const sales = activeTransactions.filter(t => t.type === 'sales');
       
-      // Carilere Göre Grupla
-      const groupedByCustomer: Record<number, { customerName: string, items: { name: string, qty: number, total: number }[], total: number }> = {};
+      // Grubu neye göre yapacağız?
+      // Mağaza Modu -> Şube Bazlı (branchId)
+      // Muhasebe Modu -> Cari Bazlı (accId)
+      const groupedData: Record<number, { name: string, items: { name: string, qty: number, total: number }[], total: number }> = {};
 
       sales.forEach(sale => {
-          if(!sale.accId) return;
-          const custId = Number(sale.accId);
-          // Müşteri ismini customers array'inden al (Garanti olsun)
-          const customer = customers.find(c => c.id === custId);
-          const custName = customer ? customer.name : (sale.accName || 'Bilinmeyen Cari');
-          
-          if (!groupedByCustomer[custId]) {
-              groupedByCustomer[custId] = { customerName: custName, items: [], total: 0 };
+          let groupId: number | undefined;
+          let groupName: string = 'Bilinmeyen';
+
+          if (panelMode === 'store') {
+              // Mağaza modunda Şube ID'ye göre grupla
+              // branchId yoksa, bu bir hata veya eski veri olabilir, atlayabiliriz veya 'Diğer' diyebiliriz.
+              if (sale.branchId) {
+                  groupId = sale.branchId;
+                  const branch = customers.find(c => c.id === groupId);
+                  groupName = branch ? branch.name : 'Bilinmeyen Şube';
+              }
+          } else {
+              // Muhasebe modunda Cari ID'ye göre grupla
+              if (sale.accId) {
+                  groupId = Number(sale.accId);
+                  const customer = customers.find(c => c.id === groupId);
+                  groupName = customer ? customer.name : (sale.accName || 'Bilinmeyen Cari');
+              }
+          }
+
+          if (!groupId) return;
+
+          if (!groupedData[groupId]) {
+              groupedData[groupId] = { name: groupName, items: [], total: 0 };
           }
           
-          groupedByCustomer[custId].total += sale.total;
+          groupedData[groupId].total += sale.total;
 
           // Ürünleri ekle
-          if(sale.items) {
+          if(Array.isArray(sale.items)) {
               sale.items.forEach(item => {
-                  groupedByCustomer[custId].items.push({
+                  groupedData[groupId].items.push({
                       name: item.name,
                       qty: item.qty,
                       total: item.total
@@ -95,9 +113,9 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
           }
       });
 
-      return Object.values(groupedByCustomer);
+      return Object.values(groupedData);
 
-  }, [activeTransactions, activeTab, customers]);
+  }, [activeTransactions, activeTab, customers, panelMode]);
 
   // --- SADECE MAĞAZA MODU: SATIŞ TEMSİLCİSİ PERFORMANSI ---
   const salesByRep = useMemo(() => {
@@ -114,7 +132,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
           grouped[rep].count += 1;
           
           // Ürün kırılımı
-          if (t.items) {
+          if (Array.isArray(t.items)) {
               t.items.forEach(i => {
                   if (!grouped[rep].items[i.name]) grouped[rep].items[i.name] = 0;
                   grouped[rep].items[i.name] += i.qty;
@@ -272,7 +290,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                             <div className="col-span-4 font-bold text-slate-700">
                                                 {/* İsim veya Açıklama */}
                                                 <div>
-                                                    {t.items?.map(i => i.name).join(', ') || t.desc}
+                                                    {Array.isArray(t.items) ? t.items.map(i => i.name).join(', ') : t.desc}
                                                     {t.invoiceNo && <span className="ml-2 text-blue-500 font-mono">#{t.invoiceNo}</span>}
                                                 </div>
                                                 
@@ -322,7 +340,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                     </div>
                     <div className="divide-y divide-red-50">
                         {dailyPurchaseInvoices.map(t => {
-                            const totalQty = t.items?.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) || 0;
+                            const totalQty = Array.isArray(t.items) ? t.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) : 0;
                             return (
                                 <div key={t.id} className="p-4 flex justify-between items-center text-xs">
                                     <div>
@@ -331,7 +349,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                             {t.invoiceNo && <span className="font-mono text-slate-400">#{t.invoiceNo}</span>}
                                         </div>
                                         <div className="text-slate-400 mt-0.5 flex items-center gap-2">
-                                            <span>{t.items?.map(i=>i.name).join(', ')}</span>
+                                            <span>{Array.isArray(t.items) ? t.items.map(i=>i.name).join(', ') : ''}</span>
                                             {totalQty > 0 && (
                                                 <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold border border-red-100">
                                                     {totalQty} Adet
@@ -347,22 +365,22 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                 </div>
             )}
 
-            {/* Monthly Customer Sales Detail */}
-            {activeTab === 'monthly' && monthlyCustomerSales.length > 0 && (
+            {/* Monthly Customer/Branch Sales Detail */}
+            {activeTab === 'monthly' && monthlyGroupedSales.length > 0 && (
                 <div className={`border border-sky-100 rounded-2xl overflow-hidden bg-white lg:col-span-2 ${isHidden('monthly-sales')}`}>
                     <div className="bg-sky-50/50 px-6 py-3 border-b border-sky-100 font-bold text-sky-700 text-xs uppercase flex items-center justify-between">
-                        <div className="flex items-center gap-2"><Box size={14}/> Aylık Cari Bazlı Ürün Satış Listesi</div>
+                        <div className="flex items-center gap-2"><Box size={14}/> Aylık {panelMode === 'store' ? 'Şube' : 'Cari'} Bazlı Ürün Satış Listesi</div>
                         <button onClick={() => handlePrintSection('monthly-sales')} className="text-sky-400 hover:text-sky-700 print:hidden"><Printer size={12}/></button>
                     </div>
                     <div className="divide-y divide-sky-50">
-                        {monthlyCustomerSales.map((custSale, idx) => (
+                        {monthlyGroupedSales.map((group, idx) => (
                              <div key={idx} className="p-5">
                                  <div className="flex justify-between items-center mb-3">
                                      <div className="flex items-center gap-2">
                                          <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center font-bold text-xs">{idx+1}</div>
-                                         <span className="font-bold text-slate-800">{custSale.customerName}</span>
+                                         <span className="font-bold text-slate-800">{group.name}</span>
                                      </div>
-                                     <div className="font-mono font-black text-slate-800 text-sm">{formatMoney(custSale.total)}</div>
+                                     <div className="font-mono font-black text-slate-800 text-sm">{formatMoney(group.total)}</div>
                                  </div>
                                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                                      <table className="w-full text-xs text-left">
@@ -374,7 +392,7 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
                                              </tr>
                                          </thead>
                                          <tbody className="divide-y divide-slate-100">
-                                             {custSale.items.map((item, i) => (
+                                             {group.items.map((item, i) => (
                                                  <tr key={i}>
                                                      <td className="py-2 text-slate-600 font-medium">{item.name}</td>
                                                      <td className="py-2 text-center text-slate-500">{item.qty}</td>
@@ -434,53 +452,54 @@ export const DailyReport: React.FC<DailyReportProps> = ({ transactions, customer
         )}
         
         {/* --- YENİ: Gelen ve Giden Ödeme Toplamları (ÖZET KUTULARI) --- */}
-        <div className={`mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 break-inside-avoid print:break-inside-avoid ${isHidden('summary-boxes')}`}>
+        {/* PRINT OPTIMIZATION: Use print:grid-cols-2 to force side-by-side printing and reduced gap/padding */}
+        <div className={`mt-8 print:mt-4 grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8 print:gap-4 break-inside-avoid print:break-inside-avoid ${isHidden('summary-boxes')}`}>
             
             {/* GELEN ÖDEME TOPLAMLARI (YEŞİL KUTU) */}
-            <div className="border-[3px] border-green-400 rounded-3xl p-6 bg-white relative overflow-hidden shadow-sm">
+            <div className="border-[3px] border-green-400 rounded-3xl p-6 print:p-3 bg-white relative overflow-hidden shadow-sm print:border-[2px]">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-green-50 rounded-bl-full -z-0"></div>
                 <div className="relative z-10">
-                    <h3 className="text-green-700 font-black uppercase tracking-wider text-sm mb-6 flex items-center gap-2">
-                        <ArrowDownLeft size={20} className="stroke-[3px]" /> Gelen Ödeme Toplamları
+                    <h3 className="text-green-700 font-black uppercase tracking-wider text-sm mb-6 print:mb-2 flex items-center gap-2 print:text-xs">
+                        <ArrowDownLeft size={20} className="stroke-[3px] print:w-4 print:h-4" /> Gelen Ödeme Toplamları
                     </h3>
                     
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-end border-b border-green-100 pb-2">
-                            <span className="text-sm font-bold text-slate-500">Türk Lirası (TL)</span>
-                            <span className="text-2xl font-black text-slate-800 font-mono">{formatMoney(summaryStats.incoming.TL, 'TL')}</span>
+                    <div className="space-y-4 print:space-y-1">
+                        <div className="flex justify-between items-end border-b border-green-100 pb-2 print:pb-1">
+                            <span className="text-sm font-bold text-slate-500 print:text-[10px]">Türk Lirası (TL)</span>
+                            <span className="text-2xl font-black text-slate-800 font-mono print:text-lg">{formatMoney(summaryStats.incoming.TL, 'TL')}</span>
                         </div>
-                        <div className="flex justify-between items-end border-b border-green-100 pb-2">
-                            <span className="text-sm font-bold text-slate-500">ABD Doları (USD)</span>
-                            <span className="text-xl font-black text-green-700 font-mono">{formatMoney(summaryStats.incoming.USD, 'USD')}</span>
+                        <div className="flex justify-between items-end border-b border-green-100 pb-2 print:pb-1">
+                            <span className="text-sm font-bold text-slate-500 print:text-[10px]">ABD Doları (USD)</span>
+                            <span className="text-xl font-black text-green-700 font-mono print:text-base">{formatMoney(summaryStats.incoming.USD, 'USD')}</span>
                         </div>
                         <div className="flex justify-between items-end">
-                            <span className="text-sm font-bold text-slate-500">Euro (EUR)</span>
-                            <span className="text-xl font-black text-blue-700 font-mono">{formatMoney(summaryStats.incoming.EUR, 'EUR')}</span>
+                            <span className="text-sm font-bold text-slate-500 print:text-[10px]">Euro (EUR)</span>
+                            <span className="text-xl font-black text-blue-700 font-mono print:text-base">{formatMoney(summaryStats.incoming.EUR, 'EUR')}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* GİDEN ÖDEME TOPLAMLARI (KIRMIZI KUTU) */}
-            <div className="border-[3px] border-red-400 rounded-3xl p-6 bg-white relative overflow-hidden shadow-sm">
+            <div className="border-[3px] border-red-400 rounded-3xl p-6 print:p-3 bg-white relative overflow-hidden shadow-sm print:border-[2px]">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-full -z-0"></div>
                 <div className="relative z-10">
-                    <h3 className="text-red-700 font-black uppercase tracking-wider text-sm mb-6 flex items-center gap-2">
-                        <ArrowUpRight size={20} className="stroke-[3px]" /> Giden Ödeme Toplamları
+                    <h3 className="text-red-700 font-black uppercase tracking-wider text-sm mb-6 print:mb-2 flex items-center gap-2 print:text-xs">
+                        <ArrowUpRight size={20} className="stroke-[3px] print:w-4 print:h-4" /> Giden Ödeme Toplamları
                     </h3>
                     
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-end border-b border-red-100 pb-2">
-                            <span className="text-sm font-bold text-slate-500">Türk Lirası (TL)</span>
-                            <span className="text-2xl font-black text-slate-800 font-mono">{formatMoney(summaryStats.outgoing.TL, 'TL')}</span>
+                    <div className="space-y-4 print:space-y-1">
+                        <div className="flex justify-between items-end border-b border-red-100 pb-2 print:pb-1">
+                            <span className="text-sm font-bold text-slate-500 print:text-[10px]">Türk Lirası (TL)</span>
+                            <span className="text-2xl font-black text-slate-800 font-mono print:text-lg">{formatMoney(summaryStats.outgoing.TL, 'TL')}</span>
                         </div>
-                        <div className="flex justify-between items-end border-b border-red-100 pb-2">
-                            <span className="text-sm font-bold text-slate-500">ABD Doları (USD)</span>
-                            <span className="text-xl font-black text-green-700 font-mono">{formatMoney(summaryStats.outgoing.USD, 'USD')}</span>
+                        <div className="flex justify-between items-end border-b border-red-100 pb-2 print:pb-1">
+                            <span className="text-sm font-bold text-slate-500 print:text-[10px]">ABD Doları (USD)</span>
+                            <span className="text-xl font-black text-green-700 font-mono print:text-base">{formatMoney(summaryStats.outgoing.USD, 'USD')}</span>
                         </div>
                         <div className="flex justify-between items-end">
-                            <span className="text-sm font-bold text-slate-500">Euro (EUR)</span>
-                            <span className="text-xl font-black text-blue-700 font-mono">{formatMoney(summaryStats.outgoing.EUR, 'EUR')}</span>
+                            <span className="text-sm font-bold text-slate-500 print:text-[10px]">Euro (EUR)</span>
+                            <span className="text-xl font-black text-blue-700 font-mono print:text-base">{formatMoney(summaryStats.outgoing.EUR, 'EUR')}</span>
                         </div>
                     </div>
                 </div>

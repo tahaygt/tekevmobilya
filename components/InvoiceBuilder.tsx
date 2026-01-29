@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Customer, Product, TransactionItem, Transaction } from '../types';
-import { Save, Plus, Trash2, ShoppingCart, Calendar, Truck, Store, UserPlus, FileUp, Check, Image as ImageIcon, User, AlertCircle } from 'lucide-react';
+import { Save, Plus, Trash2, ShoppingCart, Calendar, Truck, Store, UserPlus, FileUp, Check, Image as ImageIcon, User, AlertCircle, UserCheck } from 'lucide-react';
 
 interface InvoiceBuilderProps {
   type: 'sales' | 'purchase';
@@ -205,7 +205,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
         retailPhone2: retailCustObj?.phone2 || '',
         retailAddress: retailAddress || retailCustObj?.address || '',
         deliveryDate,
-        salesRep: panelMode === 'store' ? salesRep : undefined
+        salesRep: salesRep || '' // Force string to ensure key presence
     };
     
     let targetAccountId: number;
@@ -348,8 +348,8 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
             </div>
         </div>
 
-        {/* ROW 3: Logistics (Sadece Mağaza Modunda Göster) */}
-        {type === 'sales' && panelMode === 'store' && (
+        {/* ROW 3: Logistics (Tüm Satışlarda Göster) */}
+        {type === 'sales' && (
             <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 mb-8">
                 <div className="flex items-center gap-2 mb-4">
                     <Truck className="text-orange-500" size={20} />
@@ -364,7 +364,16 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
                          <input type="date" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white text-slate-600" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} placeholder="Teslim Tarihi" />
                     </div>
                     <div className="md:col-span-3">
-                         <input type="text" className="w-full h-[50px] px-4 border border-orange-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white placeholder-slate-400" placeholder="Satış Temsilcisi" value={salesRep} onChange={e => setSalesRep(e.target.value)} />
+                         <div className="relative">
+                            <UserCheck size={18} className="absolute left-4 top-4 text-orange-400" />
+                            <input 
+                                type="text" 
+                                className="w-full h-[50px] pl-11 pr-4 border border-orange-200 rounded-xl text-sm font-bold outline-none focus:border-orange-400 bg-white placeholder-orange-300 text-orange-800" 
+                                placeholder="Satış Temsilcisi" 
+                                value={salesRep} 
+                                onChange={e => setSalesRep(e.target.value)} 
+                            />
+                         </div>
                     </div>
                 </div>
             </div>

@@ -34,6 +34,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const [newSubName, setNewSubName] = useState('');
   const [newSubPhone, setNewSubPhone] = useState('');
   
+  // PRINT STATE FOR SINGLE TRANSACTION
+  const [printingTransaction, setPrintingTransaction] = useState<Transaction | null>(null);
+
   // Sub-Customer Search State
   const [subSearchTerm, setSubSearchTerm] = useState('');
 
@@ -105,7 +108,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
         filtered = filtered.filter(t => 
             (t.desc || '').toLowerCase().includes(searchLower) ||
             t.total.toString().includes(searchLower) ||
-            t.items?.some(i => (i.name || '').toLowerCase().includes(searchLower)) ||
+            (Array.isArray(t.items) && t.items.some(i => (i.name || '').toLowerCase().includes(searchLower))) ||
             (t.retailName || '').toLowerCase().includes(searchLower) ||
             (t.invoiceNo || '').toLowerCase().includes(searchLower) ||
             (t.salesRep || '').toLowerCase().includes(searchLower)
@@ -135,7 +138,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   }, [transactions, relatedCustomerIds, searchTerm]);
 
   const calculateCost = (items: any[]) => {
-      if(!items || !products) return 0;
+      if(!items || !Array.isArray(items) || !products) return 0;
       return items.reduce((acc, item) => {
           const product = products.find(p => p.name === item.name);
           return acc + ((product?.purchasePrice || 0) * item.qty);
@@ -168,7 +171,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
       if (editingTransaction && onEditTransaction) {
           // If items exist, recalculate total from items
           let finalTrans = { ...editingTransaction };
-          if (finalTrans.items && finalTrans.items.length > 0) {
+          if (finalTrans.items && Array.isArray(finalTrans.items) && finalTrans.items.length > 0) {
               const newTotal = finalTrans.items.reduce((sum, item) => sum + (item.qty * item.price), 0);
               finalTrans.total = newTotal;
           }
@@ -215,7 +218,22 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   const formatDate = (isoString: string) => isoString ? isoString.split('-').reverse().join('.') : '-';
 
   const handlePrint = () => {
-      window.print();
+      // Clear specific transaction print to allow general statement print
+      setPrintingTransaction(null);
+      // Timeout to allow state update before print
+      setTimeout(() => {
+        window.print();
+      }, 100);
+  };
+
+  const handlePrintTransaction = (t: Transaction) => {
+      setPrintingTransaction(t);
+      // Wait for state to update so the DOM changes to "Single Transaction View"
+      setTimeout(() => {
+          window.print();
+          // Optional: Clear it after print dialog closes (though user might want to see what they printed)
+          // setPrintingTransaction(null); 
+      }, 300);
   };
 
   const renderBalanceBox = (currency: 'TL' | 'USD' | 'EUR') => {
@@ -272,112 +290,239 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
     <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
       {/* 
           =============================================
-          PRINT ONLY TEMPLATE (Hesap Ekstresi)
+          PRINT AREA (Hidden on Screen)
           =============================================
       */}
       <div className="hidden print:block font-sans p-8">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-12 border-b-2 border-slate-900 pb-8">
-              <div>
-                  <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">TEKDEMİR</h1>
-                  <div className="text-sm font-bold uppercase tracking-widest text-slate-500">
-                      {panelMode === 'store' ? 'MAĞAZA YÖNETİMİ' : 'MOBİLYA & İÇ MİMARLIK'}
-                  </div>
-              </div>
-              <div className="text-right">
-                  <h2 className="text-2xl font-bold text-slate-800">HESAP EKSTRESİ</h2>
-                  <div className="text-slate-500 text-sm mt-1">Tarih: {new Date().toLocaleDateString('tr-TR')}</div>
-              </div>
-          </div>
-
-          {/* Customer Info Box */}
-          <div className="bg-slate-50 border border-slate-200 p-6 rounded-xl mb-8 flex justify-between items-center">
-              <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase mb-1">Sayın Müşteri</div>
-                  <div className="text-2xl font-bold text-slate-900 mb-1">{customer.name}</div>
-                  <div className="text-sm text-slate-600">{customer.address || 'Adres bilgisi bulunmamaktadır.'}</div>
-              </div>
-              <div className="text-right">
-                  <div className="text-xs font-bold text-slate-400 uppercase mb-1">İletişim</div>
-                  <div className="text-lg font-bold text-slate-800">{customer.phone || '-'}</div>
-                  <div className="text-sm text-slate-600">{customer.phone2}</div>
-              </div>
-          </div>
-
-          {/* Table */}
-          <table className="w-full text-left text-xs mb-8">
-                <thead>
-                    <tr className="border-b-2 border-slate-800">
-                        <th className="py-2 font-bold text-slate-900">TARİH</th>
-                        <th className="py-2 font-bold text-slate-900">FATURA NO</th>
-                        <th className="py-2 font-bold text-slate-900">İŞLEM TÜRÜ</th>
-                        <th className="py-2 font-bold text-slate-900">AÇIKLAMA / ÜRÜNLER</th>
-                        <th className="py-2 text-right font-bold text-slate-900">BORÇ</th>
-                        <th className="py-2 text-right font-bold text-slate-900">ALACAK</th>
-                        <th className="py-2 text-right font-bold text-slate-900">BAKİYE</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                    {processedTransactions.map((t, idx) => {
-                        const isDebt = t.type === 'sales' || t.type === 'cash_out';
-                        const isCredit = t.type === 'purchase' || t.type === 'cash_in';
-                        const snapBal = (t as any).snapshotBalance;
-                        const snapLabel = snapBal > 0 ? 'Borçlu' : snapBal < 0 ? 'Alacaklı' : '-';
-                        
-                        return (
-                            <tr key={idx}>
-                                <td className="py-2 text-slate-600 font-mono">{formatDate(t.date)}</td>
-                                <td className="py-2 text-slate-600 font-mono">{t.invoiceNo || '-'}</td>
-                                <td className="py-2 text-slate-800 font-bold uppercase">
-                                    {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
-                                </td>
-                                <td className="py-2 text-slate-600 max-w-[300px]">
-                                    {t.items ? t.items.map(i => i.name).join(', ') : t.desc}
-                                    {t.desc && t.items && <span className="italic text-slate-400 ml-1">({t.desc})</span>}
-                                </td>
-                                <td className="py-2 text-right font-mono text-slate-800">{isDebt ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
-                                <td className="py-2 text-right font-mono text-slate-800">{isCredit ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
-                                <td className="py-2 text-right font-mono font-bold text-slate-900">
-                                    <div>{Math.abs(snapBal).toLocaleString('tr-TR', {minimumFractionDigits:2})} {t.currency}</div>
-                                    <div className="text-[9px] uppercase font-normal text-slate-500">{snapLabel}</div>
-                                </td>
-                            </tr>
-                        )
-                    })}
-                </tbody>
-          </table>
-
-          {/* Balance Summary */}
-          <div className="flex justify-end mb-16">
-              <div className="w-64">
-                  {Object.entries(realBalances).map(([curr, val]) => {
-                      const amount = val as number;
-                      if (amount === 0) return null;
-                      const label = amount > 0 ? 'Borçlu' : 'Alacaklı';
-                      return (
-                          <div key={curr} className="flex justify-between items-center border-b border-slate-200 py-2">
-                              <span className="font-bold text-slate-600">{curr} Genel Toplam</span>
-                              <div className="text-right">
-                                  <div className="font-black text-xl text-slate-900">{Math.abs(amount).toLocaleString('tr-TR', {minimumFractionDigits:2})}</div>
-                                  <div className="text-[10px] uppercase font-bold">{label}</div>
-                              </div>
+          {/* ... Print content kept same ... */}
+          {printingTransaction && (
+              <div className="max-w-3xl mx-auto border border-slate-900 p-8">
+                  {/* Receipt Header */}
+                  <div className="flex justify-between items-start mb-8 pb-8 border-b-2 border-slate-900">
+                      <div>
+                          <h1 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">TEKDEMİR</h1>
+                          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                              {panelMode === 'store' ? 'MAĞAZA YÖNETİMİ' : 'MOBİLYA & İÇ MİMARLIK'}
                           </div>
-                      )
-                  })}
-              </div>
-          </div>
+                          {printingTransaction.branchId && (
+                                <div className="mt-2 text-xs font-bold text-slate-600">
+                                    Şube: {allCustomers.find(c => c.id === printingTransaction.branchId)?.name}
+                                </div>
+                          )}
+                      </div>
+                      <div className="text-right">
+                          <h2 className="text-xl font-bold text-slate-800 uppercase">
+                              {printingTransaction.type === 'sales' ? 'SATIŞ FATURASI/FİŞİ' : 
+                               printingTransaction.type === 'purchase' ? 'ALIŞ MAKBUZU' :
+                               printingTransaction.type === 'cash_in' ? 'TAHSİLAT MAKBUZU' : 'ÖDEME MAKBUZU'}
+                          </h2>
+                          <div className="text-slate-600 font-mono mt-1">
+                              Tarih: {formatDate(printingTransaction.date)}
+                          </div>
+                          {printingTransaction.invoiceNo && (
+                              <div className="text-slate-800 font-mono font-bold mt-1">
+                                  No: #{printingTransaction.invoiceNo}
+                              </div>
+                          )}
+                      </div>
+                  </div>
 
-          {/* Signature Area */}
-          <div className="grid grid-cols-2 gap-20 mt-12">
-              <div className="text-center">
-                  <div className="text-sm font-bold text-slate-900 uppercase mb-16">Teslim Alan</div>
-                  <div className="border-t border-slate-300 w-1/2 mx-auto pt-2 text-xs text-slate-400">İmza / Kaşe</div>
+                  {/* Customer & Info */}
+                  <div className="grid grid-cols-2 gap-8 mb-8">
+                      <div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cari / Müşteri</div>
+                          <div className="text-lg font-bold text-slate-900">{customer.name}</div>
+                          {printingTransaction.retailName && printingTransaction.retailName !== customer.name && (
+                               <div className="text-sm text-slate-600">Teslim Edilen: {printingTransaction.retailName}</div>
+                          )}
+                          <div className="text-xs text-slate-500 mt-1">
+                              {printingTransaction.retailAddress || customer.address || ''}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                              {printingTransaction.retailPhone1 || customer.phone || ''}
+                          </div>
+                      </div>
+                      <div className="text-right">
+                           <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">İşlem Detayı</div>
+                           <div className="text-sm font-medium text-slate-700">{printingTransaction.desc || '-'}</div>
+                           {printingTransaction.salesRep && (
+                               <div className="text-xs text-slate-500 mt-2">Satış Temsilcisi: {printingTransaction.salesRep}</div>
+                           )}
+                      </div>
+                  </div>
+
+                  {/* Items Table */}
+                  <table className="w-full text-left text-xs mb-8">
+                      <thead>
+                          <tr className="border-b border-slate-900">
+                              <th className="py-2 font-bold text-slate-900">AÇIKLAMA / ÜRÜN</th>
+                              <th className="py-2 text-center font-bold text-slate-900">MİKTAR</th>
+                              <th className="py-2 text-right font-bold text-slate-900">BİRİM FİYAT</th>
+                              <th className="py-2 text-right font-bold text-slate-900">TUTAR</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                          {printingTransaction.items && Array.isArray(printingTransaction.items) && printingTransaction.items.length > 0 ? (
+                              printingTransaction.items.map((item, idx) => (
+                                  <tr key={idx}>
+                                      <td className="py-2 text-slate-700">
+                                          <div className="font-bold">{item.name}</div>
+                                          {item.description && <div className="text-slate-500 text-[10px]">{item.description}</div>}
+                                      </td>
+                                      <td className="py-2 text-center text-slate-600">
+                                          {item.qty} {item.unit}
+                                      </td>
+                                      <td className="py-2 text-right font-mono text-slate-600">
+                                          {item.price.toLocaleString('tr-TR', {minimumFractionDigits: 2})}
+                                      </td>
+                                      <td className="py-2 text-right font-mono font-bold text-slate-800">
+                                          {item.total.toLocaleString('tr-TR', {minimumFractionDigits: 2})}
+                                      </td>
+                                  </tr>
+                              ))
+                          ) : (
+                              /* Nakit İşlemi İse */
+                              <tr>
+                                  <td colSpan={3} className="py-4 text-slate-700 font-medium">
+                                      {printingTransaction.type === 'cash_in' ? 'Tahsilat İşlemi' : 'Ödeme İşlemi'} - {printingTransaction.desc}
+                                  </td>
+                                  <td className="py-4 text-right font-mono font-bold text-slate-800">
+                                      {printingTransaction.total.toLocaleString('tr-TR', {minimumFractionDigits: 2})}
+                                  </td>
+                              </tr>
+                          )}
+                      </tbody>
+                      <tfoot>
+                          <tr className="border-t-2 border-slate-900">
+                              <td colSpan={3} className="py-3 text-right font-black text-slate-900 text-sm">GENEL TOPLAM</td>
+                              <td className="py-3 text-right font-black text-slate-900 text-lg font-mono">
+                                  {printingTransaction.total.toLocaleString('tr-TR', {minimumFractionDigits: 2})} {printingTransaction.currency}
+                              </td>
+                          </tr>
+                      </tfoot>
+                  </table>
+
+                   {/* Signature Area */}
+                   <div className="grid grid-cols-2 gap-20 mt-20">
+                        <div className="text-center">
+                            <div className="text-xs font-bold text-slate-900 uppercase mb-12">Teslim Alan</div>
+                            <div className="border-t border-slate-300 w-2/3 mx-auto pt-2 text-[10px] text-slate-400">İmza / Kaşe</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-xs font-bold text-slate-900 uppercase mb-12">Teslim Eden</div>
+                            <div className="border-t border-slate-300 w-2/3 mx-auto pt-2 text-[10px] text-slate-400">İmza / Kaşe</div>
+                        </div>
+                    </div>
               </div>
-              <div className="text-center">
-                  <div className="text-sm font-bold text-slate-900 uppercase mb-16">Teslim Eden (Firma)</div>
-                  <div className="border-t border-slate-300 w-1/2 mx-auto pt-2 text-xs text-slate-400">İmza / Kaşe</div>
-              </div>
-          </div>
+          )}
+
+          {/* ... Full Account Statement Print kept same ... */}
+          {!printingTransaction && (
+              <>
+                {/* Header */}
+                <div className="flex justify-between items-start mb-12 border-b-2 border-slate-900 pb-8">
+                    <div>
+                        <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">TEKDEMİR</h1>
+                        <div className="text-sm font-bold uppercase tracking-widest text-slate-500">
+                            {panelMode === 'store' ? 'MAĞAZA YÖNETİMİ' : 'MOBİLYA & İÇ MİMARLIK'}
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <h2 className="text-2xl font-bold text-slate-800">HESAP EKSTRESİ</h2>
+                        <div className="text-slate-500 text-sm mt-1">Tarih: {new Date().toLocaleDateString('tr-TR')}</div>
+                    </div>
+                </div>
+
+                {/* Customer Info Box */}
+                <div className="bg-slate-50 border border-slate-200 p-6 rounded-xl mb-8 flex justify-between items-center">
+                    <div>
+                        <div className="text-xs font-bold text-slate-400 uppercase mb-1">Sayın Müşteri</div>
+                        <div className="text-2xl font-bold text-slate-900 mb-1">{customer.name}</div>
+                        <div className="text-sm text-slate-600">{customer.address || 'Adres bilgisi bulunmamaktadır.'}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-xs font-bold text-slate-400 uppercase mb-1">İletişim</div>
+                        <div className="text-lg font-bold text-slate-800">{customer.phone || '-'}</div>
+                        <div className="text-sm text-slate-600">{customer.phone2}</div>
+                    </div>
+                </div>
+
+                {/* Table */}
+                <table className="w-full text-left text-xs mb-8">
+                        <thead>
+                            <tr className="border-b-2 border-slate-800">
+                                <th className="py-2 font-bold text-slate-900">TARİH</th>
+                                <th className="py-2 font-bold text-slate-900">FATURA NO</th>
+                                <th className="py-2 font-bold text-slate-900">İŞLEM TÜRÜ</th>
+                                <th className="py-2 font-bold text-slate-900">AÇIKLAMA / ÜRÜNLER</th>
+                                <th className="py-2 text-right font-bold text-slate-900">BORÇ</th>
+                                <th className="py-2 text-right font-bold text-slate-900">ALACAK</th>
+                                <th className="py-2 text-right font-bold text-slate-900">BAKİYE</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {processedTransactions.map((t, idx) => {
+                                const isDebt = t.type === 'sales' || t.type === 'cash_out';
+                                const isCredit = t.type === 'purchase' || t.type === 'cash_in';
+                                const snapBal = (t as any).snapshotBalance;
+                                const snapLabel = snapBal > 0 ? 'Borçlu' : snapBal < 0 ? 'Alacaklı' : '-';
+                                
+                                return (
+                                    <tr key={idx}>
+                                        <td className="py-2 text-slate-600 font-mono">{formatDate(t.date)}</td>
+                                        <td className="py-2 text-slate-600 font-mono">{t.invoiceNo || '-'}</td>
+                                        <td className="py-2 text-slate-800 font-bold uppercase">
+                                            {t.type === 'sales' ? 'Satış' : t.type === 'purchase' ? 'Alış' : t.type === 'cash_in' ? 'Tahsilat' : 'Ödeme'}
+                                        </td>
+                                        <td className="py-2 text-slate-600 max-w-[300px]">
+                                            {t.items && Array.isArray(t.items) ? t.items.map(i => i.name).join(', ') : t.desc}
+                                            {t.desc && t.items && Array.isArray(t.items) && <span className="italic text-slate-400 ml-1">({t.desc})</span>}
+                                        </td>
+                                        <td className="py-2 text-right font-mono text-slate-800">{isDebt ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
+                                        <td className="py-2 text-right font-mono text-slate-800">{isCredit ? (t.total as any).toLocaleString('tr-TR', {minimumFractionDigits:2}) : '-'}</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-900">
+                                            <div>{Math.abs(snapBal).toLocaleString('tr-TR', {minimumFractionDigits:2})} {t.currency}</div>
+                                            <div className="text-[9px] uppercase font-normal text-slate-500">{snapLabel}</div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                </table>
+
+                {/* Balance Summary */}
+                <div className="flex justify-end mb-16">
+                    <div className="w-64">
+                        {Object.entries(realBalances).map(([curr, val]) => {
+                            const amount = val as number;
+                            if (amount === 0) return null;
+                            const label = amount > 0 ? 'Borçlu' : 'Alacaklı';
+                            return (
+                                <div key={curr} className="flex justify-between items-center border-b border-slate-200 py-2">
+                                    <span className="font-bold text-slate-600">{curr} Genel Toplam</span>
+                                    <div className="text-right">
+                                        <div className="font-black text-xl text-slate-900">{Math.abs(amount).toLocaleString('tr-TR', {minimumFractionDigits:2})}</div>
+                                        <div className="text-[10px] uppercase font-bold">{label}</div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                {/* Signature Area */}
+                <div className="grid grid-cols-2 gap-20 mt-12">
+                    <div className="text-center">
+                        <div className="text-sm font-bold text-slate-900 uppercase mb-16">Teslim Alan</div>
+                        <div className="border-t border-slate-300 w-1/2 mx-auto pt-2 text-xs text-slate-400">İmza / Kaşe</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-sm font-bold text-slate-900 uppercase mb-16">Teslim Eden (Firma)</div>
+                        <div className="border-t border-slate-300 w-1/2 mx-auto pt-2 text-xs text-slate-400">İmza / Kaşe</div>
+                    </div>
+                </div>
+              </>
+          )}
       </div>
       
       {/* 
@@ -386,10 +531,8 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
           =============================================
       */}
       <div className="print:hidden">
-        {/* Transaction Delete Modal */}
+        {/* ... Modals kept same ... */}
         <ConfirmationModal isOpen={!!deleteId} title="İşlemi Sil" message="Bu işlemi silmek istediğinize emin misiniz? Bakiye geri alınacaktır." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} />
-        
-        {/* Sub Customer Delete Modal */}
         <ConfirmationModal isOpen={!!deleteSubId} title="Alt Cariyi Sil" message="Bu cariyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz." onConfirm={confirmDeleteSub} onCancel={() => setDeleteSubId(null)} />
         
         {viewingImage && (
@@ -401,7 +544,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             </div>
         )}
 
-        {/* Header Area */}
+        {/* ... Header Area kept same ... */}
         <div className="no-print">
             <button onClick={onBack} className="mb-6 text-slate-500 hover:text-slate-800 flex items-center text-xs font-bold uppercase tracking-wide transition-colors group">
             <ArrowLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform" /> Listeye Dön
@@ -427,7 +570,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                         <Edit2 size={18} className="mr-2"/> Cari Düzenle
                     </button>
                     <button onClick={handlePrint} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-xl font-bold transition-all flex items-center shadow-lg active:scale-95">
-                        <Printer size={18} className="mr-2"/> Yazdır
+                        <Printer size={18} className="mr-2"/> Ekstre Yazdır
                     </button>
                     <button onClick={() => setModalMode('in')} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center">
                         <ArrowDownLeft size={18} className="mr-2"/> Tahsilat Al
@@ -461,7 +604,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                         )}
                     </div>
                     
-                    {/* Alt Cari Arama Kutusu - Sadece ilgili tab aktifken göster */}
+                    {/* Alt Cari Arama Kutusu */}
                     {activeTab === 'subcustomers' && (
                          <div className="py-2 md:py-0 w-full md:w-72">
                              <div className="relative">
@@ -492,7 +635,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                     <th className="px-6 py-4 text-right w-28">Borç</th>
                                     <th className="px-6 py-4 text-right w-28">Alacak</th>
                                     <th className="px-6 py-4 text-right w-28 bg-slate-100/50">Bakiye</th>
-                                    <th className="px-6 py-4 text-center w-20 no-print">İşlem</th>
+                                    <th className="px-6 py-4 text-center w-28 no-print">İşlem</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -501,9 +644,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                     const isCredit = t.type === 'purchase' || t.type === 'cash_in';
                                     const totalCost = t.type === 'sales' ? calculateCost(t.items || []) : 0;
                                     
-                                    // AÇIKLAMA MANTIĞI: Ana açıklama yoksa, item açıklamalarını birleştir
+                                    // Description Logic
                                     let displayDesc = t.desc;
-                                    if (!displayDesc && t.items && t.items.length > 0) {
+                                    if (!displayDesc && t.items && Array.isArray(t.items) && t.items.length > 0) {
                                         const itemDescs = t.items.map(i => i.description).filter(Boolean);
                                         if (itemDescs.length > 0) {
                                             displayDesc = itemDescs.join(', ');
@@ -527,12 +670,12 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                         <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
                                                     )}
                                                 </div>
-                                                <div className="text-xs text-slate-400 truncate max-w-[250px]">{t.items?.map(i => i.name).join(', ')}</div>
+                                                <div className="text-xs text-slate-400 truncate max-w-[250px]">{t.items && Array.isArray(t.items) ? t.items.map(i => i.name).join(', ') : t.desc}</div>
                                                 
-                                                {/* Satış Temsilcisi (Sadece Mağaza Modunda) */}
-                                                {panelMode === 'store' && t.salesRep && (
-                                                    <div className="text-[10px] font-bold text-orange-600 uppercase mt-1 flex items-center gap-1">
-                                                        <UserCheck size={12} /> {t.salesRep}
+                                                {/* Satış Temsilcisi - UPDATED STYLE TO BE MORE VISIBLE */}
+                                                {t.salesRep && (
+                                                    <div className="text-[10px] text-orange-600 uppercase font-black mt-1 flex items-center gap-1.5 tracking-wide">
+                                                        <UserCheck size={13} className="stroke-[2.5px]" /> {t.salesRep}
                                                     </div>
                                                 )}
 
@@ -541,7 +684,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                         <FileImage size={10} className="mr-1"/> İrsaliye
                                                     </button>
                                                 )}
-                                                {/* MALİYET GÖSTERİMİ */}
+                                                {/* Cost */}
                                                 {t.type === 'sales' && totalCost > 0 && (
                                                     <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-50 border border-green-100 text-green-700 text-[10px] font-bold shadow-sm">
                                                         <Box size={10} />
@@ -577,6 +720,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                             </td>
                                             <td className="px-6 py-4 text-center no-print">
                                                 <div className="flex items-center justify-center gap-1">
+                                                    <button onClick={() => handlePrintTransaction(t)} className="p-2 text-slate-400 hover:text-slate-800 transition-colors" title="İşlemi Yazdır">
+                                                        <Printer size={14}/>
+                                                    </button>
                                                     <button onClick={() => handleStartEditTransaction(t)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors" title="Düzenle"><Edit2 size={14}/></button>
                                                     <button onClick={() => setDeleteId(t.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Sil"><Trash2 size={14}/></button>
                                                 </div>
@@ -608,6 +754,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                     </div>
                 </div>
             ) : (
+                // ... Sub Customers View kept same ...
                 <div className="p-8">
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                         <button onClick={() => setShowSubAdd(true)} className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-slate-400 hover:border-slate-400 hover:text-slate-600 transition-all hover:bg-slate-50 group">
@@ -689,7 +836,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                        )}
 
                        {/* Eğer ürünlü bir işlemse (Fatura) */}
-                       {editingTransaction.items && editingTransaction.items.length > 0 ? (
+                       {editingTransaction.items && Array.isArray(editingTransaction.items) && editingTransaction.items.length > 0 ? (
                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Ürünler</h4>
                                <div className="space-y-2">

@@ -94,6 +94,11 @@ const parseRow = (item: any) => {
             }
         }
     }
+    
+    // SAFETY: Ensure items is definitely an array to avoid .map/.forEach errors
+    if (!Array.isArray(item.items)) {
+        item.items = [];
+    }
 
     // 5. GEÇERLİLİK KONTROLÜ
     // ID'si olmayan veya 0 olan kayıtları ele (Başlık satırı kalıntısı vb.)
