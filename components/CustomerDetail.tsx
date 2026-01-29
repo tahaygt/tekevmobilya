@@ -84,7 +84,15 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
   // 1. GERÇEK BAKİYE HESAPLAMA (Tüm işlemlerden)
   const realBalances = useMemo<{ TL: number; USD: number; EUR: number }>(() => {
       const bals = { TL: 0, USD: 0, EUR: 0 };
-      const allCustTrans = (transactions || []).filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
+      
+      // FİLTRE GÜNCELLEMESİ: 
+      // Hem accId (müşteriye ait işlemler) 
+      // Hem de Store modunda branchId (bu şubenin yaptığı satışlar) dahil edilmeli.
+      const allCustTrans = (transactions || []).filter(t => {
+          const isDirectAcc = t.accId && relatedCustomerIds.includes(Number(t.accId));
+          const isBranchSale = panelMode === 'store' && t.branchId && relatedCustomerIds.includes(Number(t.branchId));
+          return isDirectAcc || isBranchSale;
+      });
 
       allCustTrans.forEach(t => {
           const isDebt = t.type === 'sales' || t.type === 'cash_out';
@@ -97,11 +105,16 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
           }
       });
       return bals;
-  }, [transactions, relatedCustomerIds]);
+  }, [transactions, relatedCustomerIds, panelMode]);
 
   // 2. İŞLEM HESAPLAMA VE SIRALAMA (ESKİDEN -> YENİYE)
   const processedTransactions = useMemo(() => {
-    let filtered = (transactions || []).filter(t => t.accId && relatedCustomerIds.includes(Number(t.accId)));
+    // FİLTRE GÜNCELLEMESİ: Şube satışlarını da dahil et
+    let filtered = (transactions || []).filter(t => {
+        const isDirectAcc = t.accId && relatedCustomerIds.includes(Number(t.accId));
+        const isBranchSale = panelMode === 'store' && t.branchId && relatedCustomerIds.includes(Number(t.branchId));
+        return isDirectAcc || isBranchSale;
+    });
     
     if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
@@ -111,7 +124,8 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             (Array.isArray(t.items) && t.items.some(i => (i.name || '').toLowerCase().includes(searchLower))) ||
             (t.retailName || '').toLowerCase().includes(searchLower) ||
             (t.invoiceNo || '').toLowerCase().includes(searchLower) ||
-            (t.salesRep || '').toLowerCase().includes(searchLower)
+            (t.salesRep || '').toLowerCase().includes(searchLower) ||
+            (t.accName || '').toLowerCase().includes(searchLower) // Müşteri adını da arayabilmek için
         );
     }
 
@@ -135,7 +149,7 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
             snapshotBalance: runningBalances[curr] || 0
         };
     });
-  }, [transactions, relatedCustomerIds, searchTerm]);
+  }, [transactions, relatedCustomerIds, searchTerm, panelMode]);
 
   const calculateCost = (items: any[]) => {
       if(!items || !Array.isArray(items) || !products) return 0;
@@ -657,6 +671,9 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                     const snapLabel = snapBal > 0 ? 'Borçlu' : snapBal < 0 ? 'Alacaklı' : '-';
                                     const snapColor = snapBal > 0 ? 'text-red-600' : snapBal < 0 ? 'text-green-600' : 'text-slate-400';
 
+                                    // Check if this transaction is visible because it's a branch sale (not a direct account transaction)
+                                    const isBranchSaleView = panelMode === 'store' && t.branchId === Number(customer.id) && t.accId !== Number(customer.id);
+
                                     return (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-6 py-4 font-mono text-slate-500 text-xs">{formatDate(t.date)}</td>
@@ -665,9 +682,15 @@ export const CustomerDetail: React.FC<CustomerDetailProps> = ({
                                                 <div className="font-bold text-slate-700">
                                                     {t.items ? 'Fatura' : 'Nakit İşlem'}
                                                     {t.invoiceNo && <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">#{t.invoiceNo}</span>}
-                                                    {/* Teslim Alan / Perakende Adı */}
-                                                    {panelMode === 'store' && t.retailName && (
-                                                        <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
+                                                    {/* Teslim Alan / Perakende Adı veya Müşteri Adı (Şube görünümünde) */}
+                                                    {isBranchSaleView ? (
+                                                        <div className="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 inline-flex items-center ml-2">
+                                                            <User size={10} className="mr-1"/> {t.accName || t.retailName || 'Müşteri'}
+                                                        </div>
+                                                    ) : (
+                                                        panelMode === 'store' && t.retailName && (
+                                                            <span className="text-[10px] font-normal text-slate-400 ml-2">({t.retailName})</span>
+                                                        )
                                                     )}
                                                 </div>
                                                 <div className="text-xs text-slate-400 truncate max-w-[250px]">{t.items && Array.isArray(t.items) ? t.items.map(i => i.name).join(', ') : t.desc}</div>
