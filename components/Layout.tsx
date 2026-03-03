@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Menu, X, Users, FileText, Truck, Box, Wallet, PieChart, Store, LogOut, ChevronRight, LayoutDashboard, Home } from 'lucide-react';
+import { Menu, X, Users, FileText, Truck, Box, Wallet, PieChart, Store, LogOut, ChevronRight, LayoutDashboard, Home, ClipboardList, Archive } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,12 +20,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate
     { id: 'invoice-sales', label: 'Satış Faturası', icon: FileText },
     { id: 'invoice-purchase', label: 'Alış Faturası', icon: Truck },
     { id: 'cash', label: 'Kasa İşlemleri', icon: Wallet },
-    { id: 'report', label: 'Finansal Raporlar', icon: PieChart },
+    { id: 'report', label: 'Raporlar', icon: PieChart },
   ] : [
     { id: 'invoice-sales', label: 'Perakende Satış', icon: Store }, // Icon changed to Store/Home context
     { id: 'invoice-purchase', label: 'Alış Faturası', icon: Truck }, // Added Purchase Invoice
     { id: 'customers', label: 'Şubeler & Cariler', icon: Users },
-    { id: 'products', label: 'Ürün & Stok', icon: Box },
+    { id: 'products', label: 'Ürün Kartları', icon: Box },
+    { id: 'warehouse', label: 'Depo Stok Takibi', icon: Archive }, // YENİ
+    { id: 'expenses', label: 'Şube Giderleri', icon: ClipboardList }, // YENİ
+    { id: 'shipping-costs', label: 'Sevkiyat Ücretleri', icon: Truck }, // YENİ
     { id: 'report', label: 'Satış Raporları', icon: PieChart },
   ];
 

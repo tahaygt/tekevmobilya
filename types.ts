@@ -24,6 +24,8 @@ export interface Product {
   purchasePrice: number; // Yeni: Alış Fiyatı
   price: number; // Satış Fiyatı
   currency: 'TL' | 'USD' | 'EUR';
+  stock?: number; // YENİ: Stok Adedi
+  shippingCost?: number; // YENİ: Sevkiyat Ücreti
 }
 
 export interface Safe {
@@ -51,7 +53,7 @@ export type PaymentMethod = 'nakit' | 'havale' | 'cek' | 'kredi_karti' | 'virman
 export interface Transaction {
   id: number;
   date: string;
-  type: 'sales' | 'purchase' | 'cash_in' | 'cash_out';
+  type: 'sales' | 'purchase' | 'cash_in' | 'cash_out' | 'expense'; // Added 'expense'
   section: 'accounting' | 'store'; // Bölüm ayrımı
   accId?: number; // BORÇLU OLAN MÜŞTERİ (Perakende Müşterisi)
   accName?: string;
@@ -65,6 +67,9 @@ export interface Transaction {
   
   // YENİ: Manuel Fatura No
   invoiceNo?: string;
+
+  // Gider Kategorisi (YENİ)
+  category?: string;
 
   // Şube/Satış Yeri Bilgisi
   branchId?: number; // SATIŞI YAPAN ŞUBE
@@ -81,4 +86,4 @@ export interface Transaction {
   deliveryNoteUrl?: string; // Google Drive Linki
 }
 
-export type Page = 'customers' | 'customer-detail' | 'products' | 'invoice-sales' | 'invoice-purchase' | 'cash' | 'report';
+export type Page = 'customers' | 'customer-detail' | 'products' | 'invoice-sales' | 'invoice-purchase' | 'cash' | 'report' | 'expenses' | 'warehouse';

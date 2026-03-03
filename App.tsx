@@ -10,6 +10,9 @@ import { Products } from './components/Products';
 import { InvoiceBuilder } from './components/InvoiceBuilder';
 import { Cash } from './components/Cash';
 import { DailyReport } from './components/DailyReport';
+import { Expenses } from './components/Expenses'; // YENİ
+import { Warehouse } from './components/Warehouse'; // YENİ
+import { ShippingCosts } from './components/ShippingCosts'; // YENİ
 import { SuccessModal } from './components/SuccessModal';
 import { Customer, Product, Safe, Transaction, TransactionItem, Page, PaymentMethod } from './types';
 import { LogOut, AlertCircle, Lock, Mail, RefreshCw, Calculator, Store, ChevronRight, CheckCircle2, ShieldCheck, PlayCircle } from 'lucide-react';
@@ -227,7 +230,7 @@ const LoginScreen: React.FC<{ onPanelSelect: (panel: 'accounting' | 'store') => 
              </div>
              
              <div className="absolute bottom-6 text-center w-full">
-                <p className="text-slate-600 text-xs font-medium">© 2024 Tekdemir Yazılım. Tüm hakları saklıdır.</p>
+                <p className="text-slate-600 text-xs font-medium">© 2025 tahaygt Yazılım. Tüm hakları saklıdır.</p>
              </div>
         </div>
     );
@@ -382,7 +385,7 @@ const App: React.FC = () => {
   
   const addProduct = async (data: Omit<Product, 'id'>) => {
       const mode = getMode();
-      const newProd = { ...data, id: Date.now() };
+      const newProd = { ...data, id: Date.now(), stock: 0 };
       setProducts(prev => [...prev, newProd]);
       try {
         setSyncing(true);
@@ -411,6 +414,23 @@ const App: React.FC = () => {
         await api.delete('products', id, mode);
       } finally {
         setSyncing(false);
+      }
+  };
+
+  // YENİ: Stok Güncelleme
+  const updateStock = async (productId: number, newStock: number) => {
+      const mode = getMode();
+      const product = products.find(p => p.id === productId);
+      if(!product) return;
+
+      const updatedProduct = { ...product, stock: newStock };
+      setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
+
+      try {
+          setSyncing(true);
+          await api.update('products', updatedProduct, mode);
+      } finally {
+          setSyncing(false);
       }
   };
   
@@ -448,7 +468,7 @@ const App: React.FC = () => {
       }
   };
 
-  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => {
+  const processInvoice = async (customerId: number, date: string, items: TransactionItem[], currency: 'TL' | 'USD' | 'EUR', desc: string, invoiceNo: string, retailDetails?: any, fileData?: { name: string, type: string, base64: string }) => {
     const mode = getMode();
     const total = items.reduce((sum, item) => sum + item.total, 0);
     const type = activePage === 'invoice-sales' ? 'sales' : 'purchase';
@@ -469,6 +489,7 @@ const App: React.FC = () => {
       total, 
       items,
       desc,
+      invoiceNo: invoiceNo || undefined, // YENİ: Manuel Fatura No
       section: mode,
       ...(retailDetails || {}), 
       deliveryNoteUrl: "" 
@@ -490,9 +511,36 @@ const App: React.FC = () => {
     
     const currentBal = customer.balances[currency] || 0;
     const newBal = type === 'sales' ? currentBal + total : currentBal - total;
-    const updatedCustomer = { ...customer, balances: { ...customer.balances, [currency]: newBal } };
+    
+    // CUSTOMER UPDATE LOGIC
+    // We update the balance AND if it's a sales invoice, we update the address from the form
+    let updatedCustomer: Customer = { 
+        ...customer, 
+        balances: { ...customer.balances, [currency]: newBal } 
+    };
+
+    // "Teslimat Adresi" (Green Box in prompt) should update the Alt Cari (Sub-customer) address
+    if (type === 'sales' && retailDetails && retailDetails.retailAddress) {
+        updatedCustomer.address = retailDetails.retailAddress;
+    }
     
     setCustomers(prev => prev.map(c => c.id === customerId ? updatedCustomer : c));
+
+    // STOK DÜŞME (Sadece Satış Faturaları için)
+    if (type === 'sales') {
+        items.forEach(item => {
+            const product = products.find(p => p.name === item.name);
+            if (product) {
+                // Ürün bulunduğunda stoğu düşür
+                const newStock = (product.stock || 0) - item.qty;
+                const updatedProd = { ...product, stock: newStock };
+                // State'i güncelle (API güncellemesi aşağıda yapılabilir veya burada)
+                setProducts(prev => prev.map(p => p.id === product.id ? updatedProd : p));
+                // Fire and forget stock update
+                api.update('products', updatedProd, mode);
+            }
+        });
+    }
 
     try {
         await api.create('transactions', transactionPayload, mode);
@@ -557,67 +605,103 @@ const App: React.FC = () => {
      }
   };
 
+  // YENİ: Gider Ekleme
+  const addExpense = async (amount: number, category: string, desc: string, safeId: number, date: string, currency: 'TL' | 'USD' | 'EUR') => {
+      const mode = getMode();
+      const safe = safes.find(s => s.id === safeId);
+      if(!safe) return;
+
+      const newTrans: Transaction = {
+          id: Date.now(),
+          date,
+          type: 'expense',
+          category,
+          desc,
+          total: amount,
+          currency,
+          safeId,
+          section: mode
+      };
+
+      setSyncing(true);
+      setTransactions(prev => [...prev, newTrans]);
+
+      // Kasadan düş
+      const curSafeBal = safe.balances[currency] || 0;
+      const newSafeBal = curSafeBal - amount;
+      const updatedSafe = { ...safe, balances: { ...safe.balances, [currency]: newSafeBal } };
+      setSafes(prev => prev.map(s => s.id === safe.id ? updatedSafe : s));
+
+      try {
+          await api.create('transactions', newTrans, mode);
+          await api.update('safes', updatedSafe, mode);
+          setSuccessMessage('Gider başarıyla kaydedildi.');
+      } catch(e) {
+          alert("Gider kaydedilirken hata oluştu.");
+      } finally {
+          setSyncing(false);
+      }
+  };
+
   const deleteTransaction = async (id: number) => {
       const mode = getMode();
-      
-      // Find the transaction BEFORE deleting it from state to handle balances
-      const trans = transactions.find(t => t.id === id);
-      
-      // OPTIMISTIC UPDATE: Remove from state immediately
-      // This ensures DailyReport and other views update instantly
-      setTransactions(prev => prev.filter(t => t.id !== id));
+      const trans = (transactions || []).find(t => t.id === id);
+      if(!trans) return;
 
-      if (trans) {
-          const currency = trans.currency;
-          setSyncing(true);
+      const currency = trans.currency;
+      setSyncing(true);
 
-          // Update Customer Balance
-          if(trans.accId) {
-              const customer = customers.find(c => c.id === trans.accId);
-              if(customer) {
-                  let balanceChange = 0;
-                  // If we delete a transaction, we reverse its effect on balance
-                  if (trans.type === 'sales') balanceChange = -trans.total; // Delete Sales -> Decrease Debt
-                  else if (trans.type === 'purchase') balanceChange = trans.total; // Delete Purchase -> Increase Debt (reduce credit)
-                  else if (trans.type === 'cash_in') balanceChange = trans.total; // Delete Cash In -> Increase Debt
-                  else if (trans.type === 'cash_out') balanceChange = -trans.total; // Delete Cash Out -> Decrease Debt
-                  
-                  const updatedCustomer = { 
-                      ...customer, 
-                      balances: { 
-                          ...customer.balances, 
-                          [currency]: (customer.balances[currency] || 0) + balanceChange 
-                      } 
-                  };
-                  
-                  setCustomers(prev => prev.map(c => c.id === customer.id ? updatedCustomer : c));
-                  // Fire and forget API update for customer
-                  api.update('customers', updatedCustomer, mode);
-              }
-          }
-
-          // Update Safe Balance
-          if(trans.safeId && (trans.type === 'cash_in' || trans.type === 'cash_out')) {
-               const safe = safes.find(s => s.id === trans.safeId);
-               if(safe) {
-                   const amount = trans.total;
-                   const isRevertIn = trans.type === 'cash_in'; 
-                   const currentBal = safe.balances[currency];
-                   const newBal = isRevertIn ? currentBal - amount : currentBal + amount;
-                   const updatedSafe = { ...safe, balances: { ...safe.balances, [currency]: newBal } };
-                   
-                   setSafes(prev => prev.map(s => s.id === safe.id ? updatedSafe : s));
-                   // Fire and forget API update for safe
-                   api.update('safes', updatedSafe, mode);
-               }
+      // Müşteri Bakiyesi Geri Al
+      if(trans.accId) {
+          const customer = customers.find(c => c.id === trans.accId);
+          if(customer) {
+              let balanceChange = 0;
+              if (trans.type === 'sales') balanceChange = -trans.total;
+              else if (trans.type === 'purchase') balanceChange = trans.total;
+              else if (trans.type === 'cash_in') balanceChange = trans.total; 
+              else if (trans.type === 'cash_out') balanceChange = -trans.total; 
+              
+              const updatedCustomer = { ...customer, balances: { ...customer.balances, [currency]: (customer.balances[currency]||0) + balanceChange } };
+              setCustomers(prev => prev.map(c => c.id === customer.id ? updatedCustomer : c));
+              api.update('customers', updatedCustomer, mode);
           }
       }
 
+      // Kasa Bakiyesi Geri Al (Gider dahil)
+      if(trans.safeId && (trans.type === 'cash_in' || trans.type === 'cash_out' || trans.type === 'expense')) {
+           const safe = safes.find(s => s.id === trans.safeId);
+           if(safe) {
+               const amount = trans.total;
+               const isRevertIn = trans.type === 'cash_in'; 
+               // Expense is money out, so deleting it adds money back (same as cash_out)
+               const isRevertOut = trans.type === 'cash_out' || trans.type === 'expense';
+
+               const currentBal = safe.balances[currency];
+               const newBal = isRevertIn ? currentBal - amount : currentBal + amount;
+               const updatedSafe = { ...safe, balances: { ...safe.balances, [currency]: newBal } };
+               setSafes(prev => prev.map(s => s.id === safe.id ? updatedSafe : s));
+               api.update('safes', updatedSafe, mode);
+           }
+      }
+
+      // Stok Geri Al (Eğer satış faturası siliniyorsa)
+      if (trans.type === 'sales' && trans.items) {
+          trans.items.forEach(item => {
+              const product = products.find(p => p.name === item.name);
+              if (product) {
+                  // Satış silindiği için stok geri eklenir
+                  const newStock = (product.stock || 0) + item.qty;
+                  const updatedProd = { ...product, stock: newStock };
+                  setProducts(prev => prev.map(p => p.id === product.id ? updatedProd : p));
+                  api.update('products', updatedProd, mode);
+              }
+          });
+      }
+
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      
       try {
         await api.delete('transactions', id, mode);
-      } catch(e) {
-        console.error("Delete failed on server", e);
-        // In a real app, you might want to revert state here or show an error
       } finally {
         setSyncing(false);
       }
@@ -774,7 +858,10 @@ const App: React.FC = () => {
             activePage === 'products' ? <Products products={products} onAddProduct={addProduct} onEditProduct={editProduct} onDeleteProduct={deleteProduct} /> :
             (activePage === 'invoice-sales' || activePage === 'invoice-purchase') ? <InvoiceBuilder type={activePage === 'invoice-sales' ? 'sales' : 'purchase'} customers={filteredCustomers} products={products} onSave={processInvoice} transactions={filteredTransactions} panelMode={panelMode} onAddCustomer={addCustomer} /> :
             activePage === 'cash' ? <Cash safes={safes} transactions={filteredTransactions} onAddSafe={addSafe} onEditSafe={editSafe} onDeleteSafe={deleteSafe} /> :
-            <DailyReport transactions={filteredTransactions} customers={customers} panelMode={panelMode} />
+            activePage === 'expenses' ? <Expenses transactions={filteredTransactions} safes={safes} onAddExpense={addExpense} onDeleteTransaction={deleteTransaction} /> :
+            activePage === 'warehouse' ? <Warehouse products={products} onUpdateStock={updateStock} /> :
+            activePage === 'shipping-costs' ? <ShippingCosts products={products} onEditProduct={editProduct} /> :
+            <DailyReport transactions={filteredTransactions} customers={customers} products={products} panelMode={panelMode} />
         }
         </Layout>
     </div>

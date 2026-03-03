@@ -144,7 +144,8 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ type, customers,
     const newItems = [...items];
     newItems[index].name = productName;
     if (product) {
-      newItems[index].price = product.price;
+      // Alış faturası ise alış fiyatını, değilse satış fiyatını getir
+      newItems[index].price = type === 'purchase' ? (product.purchasePrice || 0) : product.price;
       newItems[index].unit = product.unit;
     }
     updateTotal(newItems, index);
